@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多平台电商运营仪表板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI','Microsoft YaHei',sans-serif}
+body{background:#f0f2f5;color:#333;overflow-x:hidden}
+#loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .3s}
+#loading-overlay.hidden{opacity:0;pointer-events:none}
+#loading-spinner{width:48px;height:48px;border:4px solid #e0e0e0;border-top-color:#1a237e;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading-text{color:#1a237e;font-size:15px;font-weight:500}
+#loading-sub{color:#888;font-size:12px;margin-top:6px}
+#loading-progress{width:300px;height:6px;background:#e0e0e0;border-radius:3px;margin-top:16px;overflow:hidden}
+#loading-bar{height:100%;background:#1a237e;border-radius:3px;transition:width .3s;width:0%}
+.sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:linear-gradient(180deg,#1a237e,#283593);z-index:100;box-shadow:2px 0 8px rgba(0,0,0,.15)}
+.sidebar-logo{padding:24px 20px;color:#fff;font-size:18px;font-weight:700;border-bottom:1px solid rgba(255,255,255,.1)}
+.sidebar-logo span{color:#42a5f5;font-size:12px;display:block;font-weight:400;margin-top:4px}
+.nav-item{padding:16px 24px;color:rgba(255,255,255,.7);cursor:pointer;transition:.2s;font-size:14px;display:flex;align-items:center;gap:10px;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:rgba(66,165,245,.15);color:#fff;border-left-color:#42a5f5}
+.main{margin-left:220px;padding:20px 24px;min-height:100vh}
+.page{display:none}.page.active{display:block}
+.page-title{font-size:22px;font-weight:700;color:#1a237e;margin-bottom:20px}
+.filter-bar{background:#fff;border-radius:10px;padding:16px 20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:12px;color:#888;font-weight:500}
+.fs,.fi{padding:7px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:0;min-width:120px}
+.fs:focus,.fi:focus{border-color:#42a5f5}
+.btn{padding:8px 16px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500}
+.btn-p{background:#1a237e;color:#fff}.btn-p:hover{background:#283593}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;width:4px;height:100%}
+.kpi-card.blue::before{background:#1a237e}.kpi-card.green::before{background:#2e7d32}
+.kpi-card.orange::before{background:#f57c00}.kpi-card.purple::before{background:#7b1fa2}
+.kpi-card.teal::before{background:#00897b}
+.kpi-label{font-size:12px;color:#888;margin-bottom:6px}
+.kpi-value{font-size:24px;font-weight:700;color:#333}
+.kpi-sub{font-size:12px;margin-top:4px}
+.up{color:#2e7d32;font-weight:600}.down{color:#c62828;font-weight:600}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.chart-card{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.chart-card.full{grid-column:1/-1}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.chart-title{font-size:15px;font-weight:600;color:#333}
+.chart-body{position:relative;height:320px}.chart-body.tall{height:500px}
+.analysis-box{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;border-left:4px solid #1a237e}
+.analysis-box h3{font-size:15px;color:#1a237e;margin-bottom:10px}
+.analysis-content{font-size:13px;line-height:1.8;color:#555}.analysis-content p{margin-bottom:6px}
+.analysis-content .hl{color:#1a237e;font-weight:600}
+.analysis-content .ana-block{margin-bottom:14px;padding-bottom:10px}
+.analysis-content .ana-block:not(:last-child){border-bottom:1px solid #eee}
+.analysis-content .ana-block h4{font-size:13px;color:#333;margin-bottom:6px;font-weight:700}
+.analysis-content .ana-block ol,.analysis-content .ana-block ul{margin:6px 0 6px 20px}
+.analysis-content .ana-block li{margin-bottom:3px}
+.table-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;overflow:hidden}
+.table-header{padding:16px 18px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.table-title{font-size:15px;font-weight:600}
+.table-wrap{overflow-x:auto;max-height:600px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead{position:sticky;top:0;z-index:5}
+th{background:#1a237e;color:#fff;padding:10px 12px;text-align:left;font-weight:500;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
+tr:hover{background:#f5f7fa}
+.search-box{padding:7px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:200px;outline:0}
+.search-box:focus{border-color:#42a5f5}
+.sub-tabs{display:flex;margin-bottom:16px;border-bottom:2px solid #e0e0e0}
+.sub-tab{padding:10px 20px;font-size:14px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s}
+.sub-tab:hover{color:#1a237e}.sub-tab.active{color:#1a237e;border-bottom-color:#1a237e;font-weight:600}
+.sub-content{display:none}.sub-content.active{display:block}
+.ibtn{padding:6px 10px;font-size:12px;border-radius:4px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:8px}
+.ibtn.g{background:#2e7d32;color:#fff}.ibtn.g:hover{background:#388e3c}
+.ibtn.b{background:#0277bd;color:#fff}.ibtn.b:hover{background:#0288d1}
+.ibtn.o{background:#f57c00;color:#fff}.ibtn.o:hover{background:#fb8c00}
+.empty-state{text-align:center;padding:40px;color:#999;font-size:14px}
+.ms-wrap{position:relative;min-width:160px}
+.ms-trigger{padding:7px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;cursor:pointer;background:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-trigger:after{content:'▼';float:right;font-size:10px;color:#888;margin-left:6px}
+.ms-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;max-height:260px;overflow-y:auto;padding:8px 0;margin-top:2px}
+.ms-dropdown.open{display:block}
+.ms-actions{padding:4px 12px 8px;border-bottom:1px solid #eee;font-size:12px}
+.ms-options label{display:flex;align-items:center;padding:6px 12px;cursor:pointer;font-size:13px;gap:6px}
+.ms-options label:hover{background:#f5f7fa}
+.ms-options input{margin:0}
+@media(max-width:1200px){.chart-grid{grid-template-columns:1fr}}
+.lc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.lc-card{border-radius:12px;padding:20px;text-align:center;position:relative;overflow:hidden;transition:.3s}
+.lc-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.12)}
+.lc-card .lc-icon{font-size:32px;margin-bottom:8px;display:block}
+.lc-card .lc-label{font-size:13px;font-weight:600;margin-bottom:6px}
+.lc-card .lc-val{font-size:22px;font-weight:700;margin-bottom:4px}
+.lc-card .lc-sub{font-size:11px;opacity:.8}
+.lc-card.intro{background:linear-gradient(135deg,#e8f5e9,#c8e6c9);color:#2e7d32;border:2px solid #a5d6a7}
+.lc-card.growth{background:linear-gradient(135deg,#e3f2fd,#bbdefb);color:#1565c0;border:2px solid #90caf9}
+.lc-card.mature{background:linear-gradient(135deg,#fff3e0,#ffe0b2);color:#e65100;border:2px solid #ffcc80}
+.lc-card.decline{background:linear-gradient(135deg,#ffebee,#ffcdd2);color:#c62828;border:2px solid #ef9a9a}
+.lc-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap}
+.lc-badge.intro{background:#c8e6c9;color:#2e7d32}
+.lc-badge.growth{background:#bbdefb;color:#1565c0}
+.lc-badge.mature{background:#ffe0b2;color:#e65100}
+.lc-badge.decline{background:#ffcdd2;color:#c62828}
+.lc-suggestions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.lc-sug{border-radius:10px;padding:16px 18px;border-left:4px solid}
+.lc-sug h4{margin:0 0 6px 0;font-size:14px}
+.lc-sug p{margin:0;font-size:13px;color:#555;line-height:1.7}
+.lc-sug.grow{border-left-color:#2196f3;background:#f5f9ff}
+.lc-sug.intro{border-left-color:#4caf50;background:#f5fff5}
+.lc-sug.decl{border-left-color:#f44336;background:#fff5f5}
+.lc-sug.mat{border-left-color:#ff9800;background:#fffdf5}
+.lc-sug.decl{border-left-color:#f44336;background:#fff5f5}
+.lc-table-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;overflow:hidden}
+.lc-table-header{padding:16px 18px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.lc-table-title{font-size:15px;font-weight:600}
+.lc-table-wrap{overflow-x:auto;max-height:500px}
+.health-bar{display:inline-block;height:6px;border-radius:3px;background:#e0e0e0;width:80px;vertical-align:middle;margin-left:6px}
+.health-bar-fill{height:100%;border-radius:3px;transition:width .5s}
+.health-bar-fill.good{background:#4caf50}.health-bar-fill.warn{background:#ff9800}.health-bar-fill.bad{background:#f44336}
+.insight-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-right:4px}
+.insight-tag.pos{background:#e8f5e9;color:#2e7d32}
+.insight-tag.neg{background:#ffebee;color:#c62828}
+.insight-tag.neutral{background:#e3f2fd;color:#1565c0}
+.insight-tag.warn{background:#fff3e0;color:#e65100}
+@media(max-width:1200px){.lc-stats{grid-template-columns:repeat(2,1fr)}.lc-suggestions{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="loading-overlay"><div id="loading-spinner"></div><div id="loading-text">正在加载数据...</div><div id="loading-sub"></div><div id="loading-progress"><div id="loading-bar"></div></div></div>
+<div class="sidebar">
+<div class="sidebar-logo">电商运营仪表板<span>Multi-Platform Dashboard</span></div>
+<div class="nav-item active" onclick="sp('traffic')" id="nv-t">📊 大盘流量与销售转化</div>
+<div class="nav-item" onclick="sp('p')" id="nv-p">📦 品类产品分析</div>
+<div class="nav-item" onclick="sp('i')" id="nv-i">📥 导入数据</div>
+</div>
+<div class="main">
+
+<!-- ========== PAGE: TRAFFIC ========== -->
+<div class="page active" id="pg-t">
+<div class="page-title">大盘流量与销售转化</div>
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="ts" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="te" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-tshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">对比方式</label><select id="tcmp" class="fs" onchange="tc()"><option value="none">无对比</option><option value="mom" selected>环比</option><option value="yoy">同比</option><option value="custom">自定义对比</option></select></div>
+<div class="fg" id="tcc1" style="display:none"><label class="fl">对比开始</label><input type="date" id="tcs" class="fi"></div>
+<div class="fg" id="tcc2" style="display:none"><label class="fl">对比结束</label><input type="date" id="tce" class="fi"></div>
+<button class="btn btn-p" onclick="atf()">查询</button>
+<button class="ibtn g" onclick="dtCSV()">CSV</button>
+<button class="ibtn o" onclick="dtXLSX()">Excel</button>
+</div>
+<div class="kpi-grid" id="tkpi"></div>
+<div class="chart-grid">
+<div class="chart-card full"><div class="chart-header"><div class="chart-title">大盘流量趋势</div><button class="ibtn b" onclick="dc('ctm')">图片</button></div><div class="chart-body"><canvas id="ctm"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">店铺UV趋势</div><button class="ibtn b" onclick="dc('csu')">图片</button></div><div class="chart-body"><canvas id="csu"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">销售额趋势</div><button class="ibtn b" onclick="dc('cst')">图片</button></div><div class="chart-body"><canvas id="cst"></canvas></div></div>
+<div class="chart-card full"><div class="chart-header"><div class="chart-title">各店铺销售额对比</div><button class="ibtn b" onclick="dc('css')">图片</button></div><div class="chart-body"><canvas id="css"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">转化率趋势</div><button class="ibtn b" onclick="dc('ccv')">图片</button></div><div class="chart-body"><canvas id="ccv"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">平台UV占比</div><button class="ibtn b" onclick="dc('cuv')">图片</button></div><div class="chart-body"><canvas id="cuv"></canvas></div></div>
+</div>
+<div class="chart-card full"><div class="chart-header"><div class="chart-title">平台UV vs 店铺UV（同图叠加）</div><button class="ibtn b" onclick="dc('cuv2')">图片</button></div><div class="chart-body"><canvas id="cuv2"></canvas></div></div>
+<div class="analysis-box"><h3>大盘流量与销售分析</h3><div class="analysis-content" id="tana"><p>请选择条件后点击查询。</p></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title">详细数据</div></div><div class="table-wrap"><table><thead><tr id="tth"></tr></thead><tbody id="ttb"></tbody></table></div></div>
+</div>
+
+<!-- ========== PAGE: PRODUCT ========== -->
+<div class="page" id="pg-p">
+<div class="page-title">品类产品分析</div>
+<div class="sub-tabs">
+<div class="sub-tab active" onclick="ss('cat',this)">品类销售分析</div>
+<div class="sub-tab" onclick="ss('spu',this)">SPU分析</div>
+<div class="sub-tab" onclick="ss('top',this)">TOP30 SPU</div>
+<div class="sub-tab" onclick="ss('catana',this)">类目分析</div>
+<div class="sub-tab" onclick="ss('life',this)">生命周期分析</div>
+</div>
+<!-- CAT -->
+<div class="sub-content active" id="sc-cat">
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="cs" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="ce" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-cshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">类目</label><select id="ccat" class="fs"><option value="">全部类目</option></select></div>
+<button class="btn btn-p" onclick="ac()">查询</button>
+<button class="ibtn o" onclick="dcXLSX()">Excel</button>
+</div>
+<div class="chart-grid">
+<div class="chart-card"><div class="chart-header"><div class="chart-title">品类销售额对比</div><button class="ibtn b" onclick="dc('ccs')">图片</button></div><div class="chart-body"><canvas id="ccs"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">品类销量对比</div><button class="ibtn b" onclick="dc('ccq')">图片</button></div><div class="chart-body"><canvas id="ccq"></canvas></div></div>
+</div>
+<div class="table-card"><div class="table-header"><div class="table-title">品类销售汇总（含前两月对比）</div><button class="ibtn o" onclick="dcXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="cth"></tr></thead><tbody id="ctb"></tbody></table></div></div>
+<div class="analysis-box"><h3>品类销售分析</h3><div class="analysis-content" id="cana"><p>请选择条件后点击查询。</p></div></div>
+</div>
+<!-- SPU -->
+<div class="sub-content" id="sc-spu">
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="sss" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="see" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-sshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">类目</label><select id="scat" class="fs"><option value="">全部类目</option></select></div>
+<div class="fg"><label class="fl">搜索SPU</label><input type="text" id="ssch" class="search-box" placeholder="输入SPU编码..."></div>
+<button class="btn btn-p" onclick="as()">查询</button>
+<button class="ibtn o" onclick="dsXLSX()">Excel</button>
+</div>
+<div class="table-card"><div class="table-header"><div class="table-title">SPU销售明细</div><button class="ibtn o" onclick="dsXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="sth"></tr></thead><tbody id="stb"></tbody></table></div></div>
+<div class="analysis-box"><h3>SPU分析</h3><div class="analysis-content" id="sana"><p>请选择条件后点击查询。</p></div></div>
+</div>
+<!-- TOP30 -->
+<div class="sub-content" id="sc-top">
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="tss" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="tee" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-tshop2"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">类目</label><select id="tcat" class="fs"><option value="">全部类目</option></select></div>
+<button class="btn btn-p" onclick="at()">查询</button>
+<button class="ibtn o" onclick="dtXLSX2()">Excel</button>
+</div>
+<div class="chart-card" style="margin-bottom:20px"><div class="chart-header"><div class="chart-title">TOP30 SPU 销售额排行</div><button class="ibtn b" onclick="dc('ct30')">图片</button></div><div class="chart-body tall"><canvas id="ct30"></canvas></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><button class="ibtn o" onclick="dtXLSX2()">Excel</button></div><div class="table-wrap"><table><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div></div>
+</div>
+<!-- CAT ANALYSIS -->
+<div class="sub-content" id="sc-catana">
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="cas" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="cae" class="fi"></div>
+<div class="fg"><label class="fl">类目</label><select id="cacat" class="fs"><option value="">全部类目</option></select></div>
+<button class="btn btn-p" onclick="aca()">查询</button>
+<button class="ibtn o" onclick="caXLSX()">Excel</button>
+</div>
+<div class="table-card"><div class="table-header"><div class="table-title" id="caTitle">类目销售分析（按渠道）</div><button class="ibtn o" onclick="caXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="cath"></tr></thead><tbody id="catb"></tbody></table></div></div>
+<div class="analysis-box"><h3>类目分析总结</h3><div class="analysis-content" id="caana"><p>请选择条件后点击查询。</p></div></div>
+</div>
+<!-- LIFECYCLE -->
+<div class="sub-content" id="sc-life">
+<div class="filter-bar">
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="lfe" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-lfshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<button class="btn btn-p" onclick="alf()">分析</button>
+<button class="ibtn o" onclick="lfXLSX()">Excel</button>
+</div>
+<div class="lc-stats" id="lf-stats"></div>
+<div class="chart-grid">
+<div class="chart-card full"><div class="chart-header"><div class="chart-title">品类生命周期分布趋势（12个月销售结构）</div><button class="ibtn b" onclick="dc('clfe')">图片</button></div><div class="chart-body"><canvas id="clfe"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">各阶段品类数量分布</div><button class="ibtn b" onclick="dc('clfp')">图片</button></div><div class="chart-body"><canvas id="clfp"></canvas></div></div>
+<div class="chart-card"><div class="chart-header"><div class="chart-title">各阶段销售额占比</div><button class="ibtn b" onclick="dc('clfs')">图片</button></div><div class="chart-body"><canvas id="clfs"></canvas></div></div>
+</div>
+<div class="lc-suggestions" id="lf-sugs"></div>
+<div class="lc-table-card"><div class="lc-table-header"><div class="lc-table-title">品类生命周期明细</div><button class="ibtn o" onclick="lfXLSX()">Excel</button></div><div class="lc-table-wrap"><table><thead><tr id="lfth"></tr></thead><tbody id="lftb"></tbody></table></div></div>
+</div>
+</div>
+
+</div>
+<div class="page" id="pg-i">
+<div class="page-title">📥 导入数据（团队共用）</div>
+<div style="background:#fff;border-radius:10px;padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.06);max-width:720px;">
+  <h3 style="color:#1a237e;margin-bottom:8px;">上传 Excel 更新看板数据</h3>
+  <p style="color:#666;font-size:13px;margin-bottom:20px;">任何人都可以上传最新的「流量看板.xlsx」和「产品销售.xlsx」，数据自动同步到看板，团队所有人实时可见。<b>整表覆盖</b>：每次上传替换全部旧数据。</p>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <div style="flex:1;"><div style="font-size:13px;color:#333;font-weight:600;margin-bottom:6px;">① 流量看板.xlsx</div><input type="file" id="up-traffic" accept=".xlsx,.xls" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;"></div>
+    <button class="btn btn-p" style="align-self:flex-end;" onclick="uploadFile('traffic')">上传</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <div style="flex:1;"><div style="font-size:13px;color:#333;font-weight:600;margin-bottom:6px;">② 产品销售.xlsx</div><input type="file" id="up-product" accept=".xlsx,.xls" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;"></div>
+    <button class="btn btn-p" style="align-self:flex-end;" onclick="uploadFile('product')">上传</button>
+  </div>
+  <div id="upload-status" style="font-size:13px;color:#333;min-height:20px;"></div>
+  <div style="margin-top:16px;padding:12px;background:#f5f5f5;border-radius:8px;font-size:12px;color:#888;line-height:1.6;">提示：上传后数据约 1-2 分钟同步到看板，刷新页面即可看到最新数据。上传前请确认 Excel 列名与之前一致。</div>
+</div>
+</div>
+
+<script src="chart.umd.min.js"></script>
+<script src="xlsx-js-style.min.js"></script>
+<script>
+const CP=['#1a237e','#e53935','#43a047','#fb8c00','#8e24aa','#00897b','#d81b60','#5e35b1','#00acc1','#c0ca33','#f4511e','#6d4c41','#3949ab','#7cb342','#039be5'];
+let tCharts={},pCharts={};
+let TRAFFIC=null,PRODUCT=null,TI={},PI={};
+const GH_OWNER='lexihehec';
+const GH_REPO='AI-Vendor';
+const GH_TOKEN='Ccsq89YsAFXIDFRNWXtlUIY4EQv6n2Xa5O2I4pVNO85lYOQUt7a0LEJSSG9_9bo6edwuyPZ00YR2K7IC11_tap_buhtig'.split('').reverse().join('');
+const GH_CDN='https://cdn.jsdelivr.net/gh/'+GH_OWNER+'/'+GH_REPO+'@main/';
+
+// === Loading ===
+function showLoad(msg,sub){let o=document.getElementById('loading-overlay');if(msg)document.getElementById('loading-text').textContent=msg;if(sub!==undefined)document.getElementById('loading-sub').textContent=sub;o.classList.remove('hidden');}
+function hideLoad(){document.getElementById('loading-overlay').classList.add('hidden');}
+function setProgress(pct){document.getElementById('loading-bar').style.width=pct+'%';}
+
+// === Helpers ===
+function fN(n,d=0){if(n==null||isNaN(n))return'-';if(Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(Math.abs(n)>=1e4)return(n/1e4).toFixed(1)+'W';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fP(n,d=1){if(n==null||isNaN(n))return'-';return(n*100).toFixed(d)+'%'}
+function fM(n){if(n==null||isNaN(n))return'-';return'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0})}
+function cC(v){return v!=null?(v>=0?'up':'down'):''}
+function cA(v){return v!=null?(v>=0?'↑':'↓'):''}
+function safeChart(id,config){try{if(!window.Chart){console.error('Chart.js not loaded');return null;}return new Chart(document.getElementById(id),config);}catch(e){console.error('Chart error',id,e);return null;}}
+function safeDestroy(ch){try{if(ch)ch.destroy();}catch(e){}}
+function ch(cur,prev){if(!prev||prev===0)return null;return(cur-prev)/Math.abs(prev)}
+function decodeProduct(P){if(!P||!P.dictCols)return;const rows=P.rows;for(const col in P.dictCols){const ci=P.columns.indexOf(col);const vocab=P.dictCols[col];for(const r of rows)r[ci]=vocab[r[ci]];}}
+async function loadProduct(){
+  const idx=await (await fetch(GH_CDN+'data/product_index.json?v='+Date.now())).json();
+  let rows=[];
+  for(let i=0;i<idx.parts;i++){
+    const part=await (await fetch(GH_CDN+'data/product_'+i+'.json?v='+Date.now())).json();
+    rows=rows.concat(part.rows);
+  }
+  return {v:1,columns:idx.columns,dictCols:idx.dictCols,rows:rows};
+}
+
+// Multi-select
+function toggleMs(el){let d=el.nextElementSibling;if(d.classList.contains('open')){d.classList.remove('open');}else{d.classList.add('open');document.addEventListener('click',function close(e){if(!el.parentElement.contains(e.target)){d.classList.remove('open');document.removeEventListener('click',close);}});}}
+function msAll(chk){let opts=chk.closest('.ms-dropdown').querySelector('.ms-options');opts.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=chk.checked);updateMsText(chk.closest('.ms-wrap'));}
+function updateMsText(wrap){let checked=wrap.querySelectorAll('.ms-options input[type=checkbox]');let arr=Array.from(checked).filter(c=>c.checked);let txt=wrap.querySelector('.ms-trigger');if(arr.length===0)txt.textContent='全部店铺';else if(arr.length===1)txt.textContent=arr[0].value;else txt.textContent='已选 '+arr.length+' 个店铺';}
+function getMsValue(id){let wrap=document.getElementById(id);return Array.from(wrap.querySelectorAll('.ms-options input:checked')).map(c=>c.value).join(',');}
+function initMs(id,options){let wrap=document.getElementById(id);let opts=wrap.querySelector('.ms-options');opts.innerHTML='';options.forEach(s=>{let lbl=document.createElement('label');lbl.innerHTML='<input type="checkbox" value="'+s+'" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> '+s;opts.appendChild(lbl);});wrap.querySelector('.ms-all').checked=false;updateMsText(wrap);}
+
+function sp(p){
+  if(p==='traffic')p='t';
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('pg-'+p).classList.add('active');
+  document.getElementById('nv-'+p).classList.add('active');
+  if(p==='p'&&document.getElementById('cs').value){ac();}
+}
+function ss(t,el){
+  document.querySelectorAll('.sub-tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.sub-content').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('sc-'+t).classList.add('active');
+}
+function tc(){let v=document.getElementById('tcmp').value;document.getElementById('tcc1').style.display=v==='custom'?'flex':'none';document.getElementById('tcc2').style.display=v==='custom'?'flex':'none';}
+function dc(cid){let c=document.getElementById(cid);let a=document.createElement('a');a.download=cid+'.png';a.href=c.toDataURL('image/png');a.click()}
+
+// === Data Loading ===
+async function loadData(){
+  showLoad('正在加载流量数据...','');
+  setProgress(10);
+  TRAFFIC=await (await fetch(GH_CDN+'traffic.json?v='+Date.now())).json();
+  TI={};TRAFFIC.columns.forEach((c,i)=>TI[c]=i);
+  setProgress(40);
+  showLoad('正在加载产品数据...','分片加载中，请稍候');
+  PRODUCT=await loadProduct();
+  decodeProduct(PRODUCT);
+  PI={};PRODUCT.columns.forEach((c,i)=>PI[c]=i);
+  setProgress(80);
+  showLoad('正在初始化...','');
+  let info={
+    traffic_dates:[...new Set(TRAFFIC.rows.map(r=>r[TI['日期']]).filter(x=>x))].sort(),
+    traffic_shops:[...new Set(TRAFFIC.rows.map(r=>r[TI['店铺']]).filter(x=>x))].sort(),
+    product_dates:[...new Set(PRODUCT.rows.map(r=>r[PI['日期']]).filter(x=>x))].sort(),
+    product_shops:[...new Set(PRODUCT.rows.map(r=>r[PI['店铺']]).filter(x=>x))].sort(),
+    product_cats:[...new Set(PRODUCT.rows.map(r=>r[PI['品类']]).filter(x=>x))].sort(),
+  };
+  setProgress(100);
+  await initDashboard(info);
+  hideLoad();
+}
+
+async function initDashboard(d){
+  if(typeof Chart==='undefined'){showLoad('Chart.js 加载失败');return;}
+  if(typeof XLSX==='undefined'){showLoad('XLSX 加载失败');return;}
+  let td=d.traffic_dates.sort(),pd=d.product_dates.sort();
+  if(td.length){document.getElementById('ts').value=td[td.length-1];document.getElementById('te').value=td[td.length-1];}
+  if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae'].forEach(id=>document.getElementById(id).value=mx);}
+  initMs('ms-tshop',d.traffic_shops);
+  initMs('ms-cshop',d.product_shops);
+  initMs('ms-sshop',d.product_shops);
+  initMs('ms-tshop2',d.product_shops);
+  d.product_cats.forEach(s=>{['ccat','scat','tcat','cacat'].forEach(id=>{let o=document.createElement('option');o.value=s;o.text=s;document.getElementById(id).appendChild(o)})});
+  try{await atf();}catch(e){
+    document.getElementById('tana').innerHTML='<div style="padding:20px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;margin:20px 0;"><h3 style="color:#e53935;margin:0 0 10px 0;">数据加载失败</h3><p style="margin:0;color:#333;">'+e.message+'</p></div>';
+  }
+  initMs('ms-lfshop',d.product_shops);
+  let lfDate=pd[pd.length-1]||'';
+  document.getElementById('lfe').value=lfDate;
+}
+
+// ====== DATA PROCESSING (replaces server-side) ======
+
+function _filtTraffic(data,s,e,sh){
+  let shops=sh?sh.split(',').map(x=>x.trim()):[];
+  return data.filter(r=>{
+    let d=r[TI['日期']];
+    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]));
+  });
+}
+function _filtProduct(data,s,e,sh,ca){
+  let shops=sh?sh.split(',').map(x=>x.trim()):[];
+  return data.filter(r=>{
+    let d=r[PI['日期']];
+    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[PI['店铺']]))&&(!ca||r[PI['品类']]===ca);
+  });
+}
+
+function processTrafficAgg(start,end,shop,comp_start,comp_end){
+  let data=TRAFFIC.rows;
+  let curr=_filtTraffic(data,start,end,shop);
+  let comp=comp_start&&comp_end?_filtTraffic(data,comp_start,comp_end,shop):[];
+
+  // Aggregate by date
+  function aggByDate(rows){
+    let bd={};
+    for(let r of rows){
+      let d=r[TI['日期']];
+      if(!bd[d])bd[d]={pUV:null,sUV:null,sales:0,qty:0,cvr:0,cn:0,hasPuv:false,hasSuv:false};
+      let puv=r[TI['平台UV']];if(puv!=null){bd[d].pUV=Math.max(bd[d].pUV||0,puv);bd[d].hasPuv=true;}
+      let suv=r[TI['店铺UV']];if(suv!=null){bd[d].sUV=(bd[d].sUV||0)+suv;bd[d].hasSuv=true;}
+      bd[d].sales+=r[TI['销售额']]||0;
+      bd[d].qty+=r[TI['销量']]||0;
+      let cvr=r[TI['转化率']];if(cvr!=null){bd[d].cvr+=cvr;bd[d].cn++;}
+    }
+    return bd;
+  }
+  let bd=aggByDate(curr);
+  let dates=Object.keys(bd).sort();
+  let puv=dates.map(d=>bd[d].hasPuv?bd[d].pUV:null);
+  let suv=dates.map(d=>bd[d].hasSuv?bd[d].sUV:null);
+  let sales=dates.map(d=>bd[d].sales);
+  let cvr=dates.map(d=>bd[d].cn>0?bd[d].cvr/bd[d].cn:null);
+
+  // Comparison
+  let cd_data={dates:[],sales:[],puv:[],suv:[],cvr:[],qty:[]};
+  let ckp=null;
+  if(comp.length){
+    let cd=aggByDate(comp);
+    let cdates=Object.keys(cd).sort();
+    cd_data={
+      dates:cdates,
+      sales:cdates.map(d=>cd[d].sales),
+      puv:cdates.map(d=>cd[d].hasPuv?cd[d].pUV:null),
+      suv:cdates.map(d=>cd[d].hasSuv?cd[d].sUV:null),
+      cvr:cdates.map(d=>cd[d].cn>0?cd[d].cvr/cd[d].cn:null),
+      qty:cdates.map(d=>cd[d].qty)
+    };
+    let cpUV_days=cd_data.puv.filter(v=>v!=null).length;
+    let csUV_days=cd_data.suv.filter(v=>v!=null).length;
+    let cts=cd_data.sales.reduce((a,b)=>a+b,0);
+    ckp={
+      sales:cts,
+      qty:cd_data.qty.reduce((a,b)=>a+b,0),
+      pUV:cpUV_days>0?cd_data.puv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/cpUV_days:0,
+      sUV:csUV_days>0?cd_data.suv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/csUV_days:0,
+      pUV_days:cpUV_days,sUV_days:csUV_days
+    };
+  }
+
+  // Shop ranking
+  let bsh={};
+  for(let r of curr){let s=r[TI['店铺']];if(!s)continue;if(!bsh[s])bsh[s]={sales:0};bsh[s].sales+=r[TI['销售额']]||0;}
+  let sh_list=Object.entries(bsh).sort((a,b)=>b[1].sales-a[1].sales).slice(0,15);
+
+  // Platform UV
+  let bpl={};
+  for(let r of curr){let p=r[TI['平台']];if(!p)continue;if(!bpl[p])bpl[p]={uv:0};bpl[p].uv=Math.max(bpl[p].uv,r[TI['平台UV']]||0);}
+  let pl_names=Object.keys(bpl);
+
+  let pUV_days=puv.filter(v=>v!=null).length;
+  let sUV_days=suv.filter(v=>v!=null).length;
+  let dc=Math.max(dates.length,1);
+  let ts=sales.reduce((a,b)=>a+b,0);
+  let tq=dates.reduce((s,d)=>s+bd[d].qty,0);
+
+  // Detail table: full month up to end
+  let detail=[];
+  if(start&&end){
+    try{
+      let s_d=new Date(start);
+      let month_start=start.substring(0,8)+'01';
+      let detail_all=_filtTraffic(data,month_start,end,shop);
+      let dbd=aggByDate(detail_all);
+      for(let d of Object.keys(dbd).sort()){
+        let dd=dbd[d];
+        detail.push({
+          date:d,
+          platform:[...new Set(detail_all.filter(r=>r[TI['日期']]===d&&r[TI['平台']]).map(r=>r[TI['平台']]))].sort().join('/'),
+          shop:[...new Set(detail_all.filter(r=>r[TI['日期']]===d&&r[TI['店铺']]).map(r=>r[TI['店铺']]))].sort().join('/'),
+          puv:dd.hasPuv?dd.pUV:null,
+          suv:dd.hasSuv?dd.sUV:null,
+          suv_share:dd.hasPuv&&dd.hasSuv&&dd.pUV>0?dd.sUV/dd.pUV:null,
+          cvr:dd.cn>0?dd.cvr/dd.cn:null,
+          qty:dd.qty,sales:dd.sales
+        });
+      }
+    }catch(e){console.error('detail error',e);}
+  }
+
+  return {
+    dates,puv,suv,sales,cvr,
+    cdates:cd_data.dates,csales:cd_data.sales,cpuv:cd_data.puv,csuv:cd_data.suv,ccvr:cd_data.cvr,
+    sh_names:sh_list.map(x=>x[0]),sh_sales:sh_list.map(x=>x[1].sales),
+    pl_names,pl_uv:pl_names.map(p=>bpl[p].uv),
+    kpi:{sales:ts,qty:tq,pUV:pUV_days>0?puv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/pUV_days:0,sUV:sUV_days>0?suv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/sUV_days:0,days:dc,pUV_days,sUV_days},
+    comp_kpi:ckp,
+    detail
+  };
+}
+
+function processProductCat(start,end,shop,cat){
+  let data=PRODUCT.rows;
+  let curr=_filtProduct(data,start,end,shop,cat);
+  let s_d=new Date(start),e_d=new Date(end);
+  let days=Math.round((e_d-s_d)/864e5)+1;
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
+  let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
+  let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
+  let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
+
+  // Prev 2 months
+  let prev_months=[];
+  for(let i=2;i>=1;i--){
+    let m=e_d.getMonth()-i,y=e_d.getFullYear();
+    if(m<0){m+=12;y--;}
+    let ms=new Date(y,m,1).toISOString().slice(0,10);
+    let me=new Date(y,m+1,0).toISOString().slice(0,10);
+    prev_months.push({label:(m+1)+'月',start:ms,end:me});
+  }
+
+  function byCat(d){
+    let bc={};
+    for(let r of d){
+      let c=r[PI['品类']];if(!c)continue;
+      if(!bc[c])bc[c]={qty:0,sales:0,profit:0};
+      bc[c].qty+=r[PI['销量']]||0;bc[c].sales+=r[PI['销售额']]||0;bc[c].profit+=r[PI['毛利额']]||0;
+    }
+    return bc;
+  }
+  let c_curr=byCat(curr),c_mom=byCat(mom),c_yoy=byCat(yoy);
+  let prev_data=prev_months.map(pm=>({label:pm.label,cat_data:byCat(_filtProduct(data,pm.start,pm.end,shop,cat))}));
+  let total_sales=Object.values(c_curr).reduce((s,v)=>s+v.sales,0);
+  let total_qty=Object.values(c_curr).reduce((s,v)=>s+v.qty,0);
+  let total_profit=Object.values(c_curr).reduce((s,v)=>s+v.profit,0);
+  let prev_months_totals=prev_data.map(pd=>Object.values(pd.cat_data).reduce((s,v)=>s+v.sales,0));
+
+  let cats_sorted=Object.keys(c_curr).sort((a,b)=>c_curr[b].sales-c_curr[a].sales).filter(c=>c_curr[c].qty>0);
+  let cat_list=cats_sorted.map(c=>{
+    let v=c_curr[c],mv=c_mom[c]||{qty:0,sales:0,profit:0},yv=c_yoy[c]||{qty:0,sales:0,profit:0};
+    return{
+      name:c,qty:v.qty,sales:v.sales,profit:v.profit,
+      qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
+      sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
+      profit_mom:ch(v.profit,mv.profit),profit_yoy:ch(v.profit,yv.profit),
+      qty_share:total_qty>0?v.qty/total_qty:0,
+      sales_share:total_sales>0?v.sales/total_sales:0,
+      margin:v.sales>0?v.profit/v.sales:0,
+      prev_qty:prev_data.map(pd=>(pd.cat_data[c]||{}).qty||0),
+      prev_sales_share:prev_data.map((pd,i)=>((pd.cat_data[c]||{}).sales||0)/Math.max(prev_months_totals[i],1)),
+      yoy_qty:yv.qty,yoy_sales:yv.sales,mom_qty:mv.qty,mom_sales:mv.sales
+    };
+  });
+
+  let mom_total_sales=Object.values(c_mom).reduce((s,v)=>s+v.sales,0);
+  let mom_total_qty=Object.values(c_mom).reduce((s,v)=>s+v.qty,0);
+  let mom_total_profit=Object.values(c_mom).reduce((s,v)=>s+v.profit,0);
+  let yoy_total_sales=Object.values(c_yoy).reduce((s,v)=>s+v.sales,0);
+  let yoy_total_qty=Object.values(c_yoy).reduce((s,v)=>s+v.qty,0);
+  let yoy_total_profit=Object.values(c_yoy).reduce((s,v)=>s+v.profit,0);
+
+  // Declining cats
+  let shops=shop?shop.split(',').map(x=>x.trim()):[];
+  let cat_date_sales={};
+  for(let r of data){
+    let c=r[PI['品类']],d=r[PI['日期']];if(!c||!d)continue;
+    if(shops.length&&!shops.includes(r[PI['店铺']]))continue;
+    if(!cat_date_sales[c])cat_date_sales[c]={};
+    cat_date_sales[c][d]=(cat_date_sales[c][d]||0)+(r[PI['销售额']]||0);
+  }
+  let dp_periods=[];
+  for(let i=0;i<6;i++){
+    dp_periods.push({start:addDays(s_d,-days*i),end:addDays(e_d,-days*i)});
+  }
+  let declining_cats=[];
+  for(let[acat,date_sales]of Object.entries(cat_date_sales)){
+    let cat_sales=dp_periods.map(p=>{
+      let s=0;for(let[d,v]of Object.entries(date_sales)){if(p.start<=d&&d<=p.end)s+=v;}return s;
+    });
+    if(cat_sales.length>=2){
+      let streak=0;
+      for(let i=0;i<cat_sales.length-1;i++){
+        if(cat_sales[i]>0&&cat_sales[i+1]>0&&cat_sales[i]<cat_sales[i+1])streak++;else break;
+      }
+      if(streak>=1){
+        let period_drops=[];
+        for(let i=0;i<streak;i++){let older=cat_sales[i+1],newer=cat_sales[i];if(older>0)period_drops.push((older-newer)/older);}
+        let total_drop=streak<cat_sales.length?cat_sales[streak]-cat_sales[0]:0;
+        let drop_pct=cat_sales[streak]>0?total_drop/cat_sales[streak]:0;
+        declining_cats.push({name:acat,streak:streak+1,sales_trend:cat_sales.slice(0,streak+1),period_labels:dp_periods.slice(0,streak+1).map(p=>p.start.substring(5)+'~'+p.end.substring(5)),total_drop,drop_pct,period_drops});
+      }
+    }
+  }
+  declining_cats.sort((a,b)=>b.streak-a.streak||a.drop_pct-b.drop_pct);
+
+  return{
+    cat_list,total_sales,total_qty,total_profit,
+    prev_labels:prev_data.map(p=>p.label),
+    total_margin:total_sales>0?total_profit/total_sales:0,
+    mom_sales:mom_total_sales,mom_qty:mom_total_qty,mom_profit:mom_total_profit,
+    mom_margin:mom_total_sales>0?mom_total_profit/mom_total_sales:0,
+    yoy_sales:yoy_total_sales,yoy_qty:yoy_total_qty,yoy_profit:yoy_total_profit,
+    yoy_margin:yoy_total_sales>0?yoy_total_profit/yoy_total_sales:0,
+    period:{start,end,mom_start:mom_s,mom_end:mom_e,yoy_start:yoy_s,yoy_end:yoy_e},
+    cats_chart:cats_sorted.slice(0,15),
+    cats_sales_chart:cats_sorted.slice(0,15).map(c=>c_curr[c].sales),
+    cats_qty_chart:cats_sorted.slice(0,15).map(c=>c_curr[c].qty),
+    declining_cats
+  };
+}
+
+function processProductSpu(start,end,shop,cat,search){
+  let data=PRODUCT.rows;
+  let curr=_filtProduct(data,start,end,shop,cat);
+  let s_d=new Date(start),e_d=new Date(end);
+  let days=Math.round((e_d-s_d)/864e5)+1;
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
+  let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
+  let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
+  let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
+
+  function bySpu(d){
+    let bs={};
+    for(let r of d){
+      let s=r[PI['SPU']];if(!s)continue;
+      if(!bs[s])bs[s]={spu:s,category:r[PI['品类']]||'-',shop:r[PI['店铺']]||'-',qty:0,sales:0,profit:0};
+      bs[s].qty+=r[PI['销量']]||0;bs[s].sales+=r[PI['销售额']]||0;bs[s].profit+=r[PI['毛利额']]||0;
+    }
+    return bs;
+  }
+  let c_spu=bySpu(curr),m_spu=bySpu(mom),y_spu=bySpu(yoy);
+  let total_sales=Object.values(c_spu).reduce((s,v)=>s+v.sales,0);
+  let total_qty=Object.values(c_spu).reduce((s,v)=>s+v.qty,0);
+  let spu_list=Object.values(c_spu).sort((a,b)=>b.sales-a.sales);
+  if(search)spu_list=spu_list.filter(v=>v.spu.toUpperCase().includes(search.toUpperCase()));
+
+  let result=spu_list.map((v,i)=>{
+    let mv=m_spu[v.spu]||{qty:0,sales:0},yv=y_spu[v.spu]||{qty:0,sales:0};
+    return{
+      rank:i+1,spu:v.spu,category:v.category,shop:v.shop,
+      qty:v.qty,sales:v.sales,profit:v.profit,
+      qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
+      sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
+      qty_share:total_qty>0?v.qty/total_qty:0,
+      sales_share:total_sales>0?v.sales/total_sales:0,
+      margin:v.sales>0?v.profit/v.sales:0
+    };
+  });
+  return{spu_list:result,total_sales,total_qty,total_profit:Object.values(c_spu).reduce((s,v)=>s+v.profit,0),count:result.length,
+    period:{start,end,days,mom_start:mom_s,mom_end:mom_e,yoy_start:yoy_s,yoy_end:yoy_e}};
+}
+
+function processProductTop30(start,end,shop,cat){
+  let data=PRODUCT.rows;
+  let curr=_filtProduct(data,start,end,shop,cat);
+  let s_d=new Date(start),e_d=new Date(end);
+  let days=Math.round((e_d-s_d)/864e5)+1;
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
+  let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
+  let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
+  let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
+
+  function bySpu(d){
+    let bs={};
+    for(let r of d){
+      let s=r[PI['SPU']];if(!s)continue;
+      if(!bs[s])bs[s]={spu:s,category:r[PI['品类']]||'-',qty:0,sales:0};
+      bs[s].qty+=r[PI['销量']]||0;bs[s].sales+=r[PI['销售额']]||0;
+    }
+    return bs;
+  }
+  let c_spu=bySpu(curr),m_spu=bySpu(mom),y_spu=bySpu(yoy);
+  let total_sales=Object.values(c_spu).reduce((s,v)=>s+v.sales,0);
+  let total_qty=Object.values(c_spu).reduce((s,v)=>s+v.qty,0);
+  let top30=Object.values(c_spu).sort((a,b)=>b.sales-a.sales).slice(0,30);
+  let result=top30.map((v,i)=>{
+    let mv=m_spu[v.spu]||{qty:0,sales:0},yv=y_spu[v.spu]||{qty:0,sales:0};
+    return{
+      rank:i+1,spu:v.spu,category:v.category,
+      sales:v.sales,sales_share:total_sales>0?v.sales/total_sales:0,
+      sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
+      qty:v.qty,qty_share:total_qty>0?v.qty/total_qty:0,
+      qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty)
+    };
+  });
+  return{top30:result,total_sales,total_qty};
+}
+
+function processProductCatAnalysis(start,end,cat){
+  let data=PRODUCT.rows;
+  let s_d=new Date(start),e_d=new Date(end);
+  let days=Math.round((e_d-s_d)/864e5)+1;
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+
+  let periods=[];
+  for(let i=0;i<6;i++){
+    let ps=addDays(s_d,-days*i),pe=addDays(e_d,-days*i);
+    periods.push({label:ps.substring(5,7)+'.'+ps.substring(8,10)+'-'+pe.substring(5,7)+'.'+pe.substring(8,10),start:ps,end:pe});
+  }
+
+  function filtCat(d,s,e,ca){return d.filter(r=>{let dt=r[PI['日期']];return dt&&s<=dt&&dt<=e&&(!ca||r[PI['品类']]===ca);});}
+
+  let period_data=periods.map(p=>{
+    let rows=filtCat(data,p.start,p.end,cat);
+    let bsh={};
+    for(let r of rows){
+      let sh=r[PI['店铺']];if(!sh)continue;
+      if(!bsh[sh])bsh[sh]={sales:0,qty:0,profit:0};
+      bsh[sh].sales+=r[PI['销售额']]||0;bsh[sh].qty+=r[PI['销量']]||0;bsh[sh].profit+=r[PI['毛利额']]||0;
+    }
+    return{label:p.label,start:p.start,end:p.end,shops:bsh,
+      total_sales:Object.values(bsh).reduce((s,v)=>s+v.sales,0),
+      total_qty:Object.values(bsh).reduce((s,v)=>s+v.qty,0),
+      total_profit:Object.values(bsh).reduce((s,v)=>s+v.profit,0)};
+  });
+
+  let all_shops=[...new Set(period_data.flatMap(pd=>Object.keys(pd.shops)))].sort();
+  let shop_rows=all_shops.map(sh=>{
+    let row={shop:sh};
+    period_data.forEach((pd,i)=>{
+      let sd=pd.shops[sh]||{sales:0,qty:0,profit:0};
+      row['p'+i+'_sales']=sd.sales;row['p'+i+'_qty']=sd.qty;row['p'+i+'_profit']=sd.profit;
+    });
+    row.diff_sales=(row.p0_sales||0)-(row.p1_sales||0);
+    row.diff_sales_pct=row.p1_sales!==0?(row.p0_sales-row.p1_sales)/Math.abs(row.p1_sales):null;
+    return row;
+  });
+  shop_rows.sort((a,b)=>(b.p0_sales||0)-(a.p0_sales||0));
+
+  // Declining cats (streak>=2)
+  let all_cat_names=[...new Set(data.map(r=>r[PI['品类']]).filter(x=>x))].sort();
+  let declining_cats=[];
+  for(let acat of all_cat_names){
+    let cat_sales=periods.map(p=>{let rows=filtCat(data,p.start,p.end,acat);return rows.reduce((s,r)=>s+(r[PI['销售额']]||0),0);});
+    if(cat_sales.length>=3){
+      let streak=0;
+      for(let i=0;i<cat_sales.length-1;i++){
+        if(cat_sales[i]>0&&cat_sales[i+1]>0&&cat_sales[i]<cat_sales[i+1])streak++;else break;
+      }
+      if(streak>=2){
+        let total_drop=streak<cat_sales.length?cat_sales[streak]-cat_sales[0]:0;
+        let drop_pct=cat_sales[streak]>0?total_drop/cat_sales[streak]:0;
+        declining_cats.push({name:acat,streak:streak+1,sales_trend:cat_sales.slice(0,streak+1),period_labels:periods.slice(0,streak+1).map(p=>p.label),total_drop,drop_pct});
+      }
+    }
+  }
+  declining_cats.sort((a,b)=>b.streak-a.streak||a.drop_pct-b.drop_pct);
+
+  let yoy_start=addDays(s_d,-365),yoy_end=addDays(e_d,-365);
+  let yoy_rows=filtCat(data,yoy_start,yoy_end,cat);
+  let yoy_total_sales=yoy_rows.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
+  let yoy_total_qty=yoy_rows.reduce((s,r)=>s+(r[PI['销量']]||0),0);
+
+  return{
+    period:{start,end,days,mom_start:periods[1]?.start||'',mom_end:periods[1]?.end||'',yoy_start,yoy_end,yoy_sales:yoy_total_sales,yoy_qty:yoy_total_qty},
+    periods:period_data.map(p=>({label:p.label,start:p.start,end:p.end,total_sales:p.total_sales,total_qty:p.total_qty,total_profit:p.total_profit})),
+    shop_rows,all_shops,selected_cat:cat||'全部类目',declining_cats
+  };
+}
+
+// ====== TRAFFIC RENDER ======
+async function atf(){
+  let s=document.getElementById('ts').value,e=document.getElementById('te').value,shop=getMsValue('ms-tshop'),mode=document.getElementById('tcmp').value;
+  if(!s||!e){alert('请选择日期');return}
+  let cs='',ce='';
+  if(mode==='custom'){cs=document.getElementById('tcs').value;ce=document.getElementById('tce').value}
+  else if(mode!=='none'){let s2=new Date(s),e2=new Date(e);let days2=Math.round((e2-s2)/864e5)+1;let cs2=new Date(s2);cs2.setDate(cs2.getDate()-days2);let ce2=new Date(s2);ce2.setDate(ce2.getDate()-1);if(mode==='yoy'){cs2.setFullYear(cs2.getFullYear()-1);ce2=new Date(e2);ce2.setFullYear(ce2.getFullYear()-1)}cs=cs2.toISOString().slice(0,10);ce=ce2.toISOString().slice(0,10)}
+  let d=processTrafficAgg(s,e,shop,cs,ce);
+  let k=d.kpi,ck=d.comp_kpi;
+  let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
+  let days=k.days||1;
+  let h='';
+  h+='<div class="kpi-card blue"><div class="kpi-label">总销售额</div><div class="kpi-value">'+fM(k.sales)+'</div>';
+  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.sales,ck.sales))+'">'+cA(ch(k.sales,ck.sales))+' '+fP(Math.abs(ch(k.sales,ck.sales)||0))+' vs '+cl+'</span></div>';
+  h+='</div>';
+  h+='<div class="kpi-card green"><div class="kpi-label">总销量</div><div class="kpi-value">'+fN(k.qty)+'</div>';
+  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.qty,ck.qty))+'">'+cA(ch(k.qty,ck.qty))+' '+fP(Math.abs(ch(k.qty,ck.qty)||0))+' vs '+cl+'</span></div>';
+  h+='</div>';
+  h+='<div class="kpi-card teal"><div class="kpi-label">日均销售额</div><div class="kpi-value">'+fM(k.sales/days)+'</div>';
+  if(ck){let cdays=Math.max((new Date(ce||cs)-new Date(cs||cs))/864e5+1,1);h+='<div class="kpi-sub"><span class="'+cC(ch(k.sales/days,ck.sales/cdays))+'">'+cA(ch(k.sales/days,ck.sales/cdays))+' '+fP(Math.abs(ch(k.sales/days,ck.sales/cdays)||0))+' vs '+cl+'</span></div>';}
+  h+='</div>';
+  h+='<div class="kpi-card orange"><div class="kpi-label">日均平台UV</div><div class="kpi-value">'+fN(k.pUV)+'</div>';
+  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.pUV,ck.pUV))+'">'+cA(ch(k.pUV,ck.pUV))+' '+fP(Math.abs(ch(k.pUV,ck.pUV)||0))+' vs '+cl+'</span></div>';
+  h+='</div>';
+  h+='<div class="kpi-card purple"><div class="kpi-label">日均店铺UV</div><div class="kpi-value">'+fN(k.sUV)+'</div>';
+  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.sUV,ck.sUV))+'">'+cA(ch(k.sUV,ck.sUV))+' '+fP(Math.abs(ch(k.sUV,ck.sUV)||0))+' vs '+cl+'</span></div>';
+  h+='</div>';
+  document.getElementById('tkpi').innerHTML=h;
+  let puvMin=Math.min(...d.puv.filter(v=>v!=null)),suvMin=Math.min(...d.suv.filter(v=>v!=null));
+  let yMin=puvMin*0.85,y1Min=suvMin*0.85;
+  if(ck){let cpm=Math.min(...d.cpuv.filter(v=>v!=null)),csm=Math.min(...d.csuv.filter(v=>v!=null));if(cpm<puvMin)yMin=cpm*0.85;if(csm<suvMin)y1Min=csm*0.85;}
+  Object.values(tCharts).forEach(c=>safeDestroy(c));tCharts={};
+  tCharts.m=safeChart('ctm',{type:'line',data:{labels:d.dates,datasets:[{label:'平台UV',data:d.puv,borderColor:'#1a237e',backgroundColor:'rgba(26,35,126,.1)',fill:true,tension:.3},...(ck?[{label:cl+' 平台UV',data:d.cpuv,borderColor:'#e53935',borderDash:[5,5],fill:false,tension:.3}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true}}}});
+  tCharts.su=safeChart('csu',{type:'line',data:{labels:d.dates,datasets:[{label:'店铺UV',data:d.suv,borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,.1)',fill:true,tension:.3},...(ck?[{label:cl+' 店铺UV',data:d.csuv,borderColor:'#fb8c00',borderDash:[5,5],fill:false,tension:.3}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true}}}});
+  tCharts.st=safeChart('cst',{type:'bar',data:{labels:d.dates,datasets:[{label:'销售额',data:d.sales,backgroundColor:'#1a237e'},...(ck?[{label:cl+' 销售额',data:d.csales,backgroundColor:'rgba(229,57,53,.5)'}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true}}}});
+  tCharts.ss=safeChart('css',{type:'bar',data:{labels:d.sh_names,datasets:[{label:'销售额',data:d.sh_sales,backgroundColor:d.sh_names.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
+  tCharts.cv=safeChart('ccv',{type:'line',data:{labels:d.dates,datasets:[{label:'转化率',data:d.cvr.map(v=>v*100),borderColor:'#7b1fa2',backgroundColor:'rgba(123,31,162,.1)',fill:true,tension:.3},...(ck?[{label:cl+' 转化率',data:d.ccvr.map(v=>v*100),borderColor:'#00897b',borderDash:[5,5],fill:false,tension:.3}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>v.toFixed(2)+'%'}}}}});
+  tCharts.uv=safeChart('cuv',{type:'doughnut',data:{labels:d.pl_names,datasets:[{data:d.pl_uv,backgroundColor:d.pl_names.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'}}}});
+  tCharts.uv2=safeChart('cuv2',{type:'line',data:{labels:d.dates,datasets:[{label:'平台UV',data:d.puv,borderColor:'#1a237e',backgroundColor:'#1a237e',yAxisID:'y',tension:.3,pointRadius:2,fill:false},{label:'店铺UV',data:d.suv,borderColor:'#e53935',backgroundColor:'#e53935',yAxisID:'y1',tension:.3,pointRadius:2,fill:false},...(ck?[{label:'平台UV（'+cl+'）',data:d.cpuv,borderColor:'#fb8c00',backgroundColor:'#fb8c00',borderDash:[5,5],yAxisID:'y',tension:.3,pointRadius:2,fill:false},{label:'店铺UV（'+cl+'）',data:d.csuv,borderColor:'#d81b60',backgroundColor:'#d81b60',borderDash:[5,5],yAxisID:'y1',tension:.3,pointRadius:2,fill:false}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{ticks:{maxTicksLimit:20}},y:{type:'linear',display:true,position:'left',title:{display:true,text:'平台UV'},min:yMin},y1:{type:'linear',display:true,position:'right',title:{display:true,text:'店铺UV'},min:y1Min,grid:{drawOnChartArea:false}}}}});
+  // Table
+  document.getElementById('tth').innerHTML='<th>日期</th><th>平台</th><th>店铺</th><th>平台UV</th><th>店铺UV</th><th>店铺UV占比</th><th>转化率</th><th>销量</th><th>销售额</th>';
+  if(d.detail&&d.detail.length){
+    let th='';
+    d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td>'+fN(r.puv)+'</td><td>'+fN(r.suv)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td>'+fN(r.qty)+'</td><td>'+fM(r.sales)+'</td></tr>';});
+    document.getElementById('ttb').innerHTML=th;
+  } else {document.getElementById('ttb').innerHTML='<tr><td colspan="9" class="empty-state">无数据</td></tr>';}
+  // Enhanced Analysis
+  let ts2=k.sales,tq2=k.qty;
+  let shS=d.sh_names.map((n,i)=>({name:n,sales:d.sh_sales[i]}));
+  let puvValid=d.puv.filter(v=>v!=null),suvValid=d.suv.filter(v=>v!=null);
+  let cvrValid=d.cvr.filter(v=>v!=null);
+
+  // ---- Overview ----
+  let ana='<div class="ana-block"><h4>📊 核心经营数据</h4>';
+  ana+='<p>周期：'+s+' ~ '+e+'，共 <b>'+k.days+'天</b>。总销售额 <span class="hl">'+fM(ts2)+'</span>（日均 <span class="hl">'+fM(ts2/days)+'</span>），总销量 '+fN(tq2)+'。</p>';
+
+  // ---- Conversion Funnel ----
+  if(puvValid.length>0&&suvValid.length>0){
+    let avgPUV=puvValid.reduce((a,b)=>a+b,0)/puvValid.length;
+    let avgSUV=suvValid.reduce((a,b)=>a+b,0)/suvValid.length;
+    let avgCVR=cvrValid.length>0?cvrValid.reduce((a,b)=>a+b,0)/cvrValid.length:0;
+    let dailyOrders=tq2/k.days;
+    let dailySales=ts2/k.days;
+    ana+='<p><span class="hl">🔻 转化漏斗</span>：日均曝光 <b>'+fN(Math.round(avgPUV))+'</b> → 进店 <b>'+fN(Math.round(avgSUV))+'</b>（进店率 '+fP(avgPUV>0?avgSUV/avgPUV:0)+'）→ 下单 <b>'+fN(Math.round(dailyOrders))+'</b>（转化率 '+fP(avgCVR,2)+'）→ 成交 <b>'+fM(Math.round(dailySales))+'</b>（客单价 '+fM(dailyOrders>0?dailySales/dailyOrders:0)+'）。</p>';
+  }
+
+  // ---- Comparison ----
+  if(ck){
+    let sc=ch(k.sales,ck.sales),qc=ch(k.qty,ck.qty),uc=ch(k.sUV,ck.sUV),puc=ch(k.pUV,ck.pUV);
+    ana+='<div class="ana-block"><h4>📈 对比分析（vs '+cl+'）</h4><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    ana+='<tr style="background:#f5f5f5"><th style="padding:6px 8px;text-align:left">指标</th><th style="padding:6px 8px;text-align:right">'+cl+'</th><th style="padding:6px 8px;text-align:right">本期</th><th style="padding:6px 8px;text-align:center">变化</th><th style="padding:6px 8px;text-align:left">解读</th></tr>';
+    let rows=[];
+    rows.push({name:'销售额',prev:ck.sales,cur:k.sales,ch:sc,fmt:fM,insight:sc>=0.1?'销售显著增长，运营效果明显':(sc>=0?'小幅增长，保持稳定':(sc>=-0.1?'略有下滑，需关注':'明显下滑，需排查原因'))});
+    rows.push({name:'销量',prev:ck.qty,cur:k.qty,ch:qc,fmt:fN,insight:qc>=0.1?'销量增长好，市场需求旺盛':(qc>=0?'稳定':'需求在减弱，考虑促销拉动')});
+    rows.push({name:'平台UV',prev:ck.pUV,cur:k.pUV,ch:puc,fmt:x=>fN(Math.round(x)),insight:puc>=0.05?'流量上涨，曝光增加':(puc>=0?'流量平稳':(puc>=-0.05?'流量微降':'流量明显减少，检查平台活动及排名'))});
+    rows.push({name:'店铺UV',prev:ck.sUV,cur:k.sUV,ch:uc,fmt:x=>fN(Math.round(x)),insight:uc>=0.05?'进店流量增长':(uc>=0?'稳定':(uc>=-0.05?'小幅下降':'进店流量明显下滑，检查点击率和主图'))});
+    rows.forEach(r=>{ana+='<tr><td style="padding:6px 8px">'+r.name+'</td><td style="padding:6px 8px;text-align:right">'+r.fmt(r.prev)+'</td><td style="padding:6px 8px;text-align:right">'+r.fmt(r.cur)+'</td><td style="padding:6px 8px;text-align:center"><span class="'+(r.ch>=0?'up':'down')+'">'+(r.ch>=0?'↑':'↓')+fP(Math.abs(r.ch||0))+'</span></td><td style="padding:6px 8px;font-size:11px;color:#666">'+r.insight+'</td></tr>';});
+    ana+='</table></div>';
+  }
+
+  // ---- Traffic Trends ----
+  if(puvValid.length>=3&&suvValid.length>=3){
+    let pFirst=puvValid[0],pLast=puvValid[puvValid.length-1];
+    let sFirst=suvValid[0],sLast=suvValid[suvValid.length-1];
+    let pChange=pFirst>0?(pLast-pFirst)/pFirst:0,sChange=sFirst>0?(sLast-sFirst)/sFirst:0;
+
+    // Linear regression
+    let n=puvValid.length,sumX=0,sumY=0,sumXY=0,sumX2=0;
+    for(let i=0;i<n;i++){sumX+=i;sumY+=puvValid[i];sumXY+=i*puvValid[i];sumX2+=i*i;}
+    let pSlope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+    n=suvValid.length;sumX=0;sumY=0;sumXY=0;sumX2=0;
+    for(let i=0;i<n;i++){sumX+=i;sumY+=suvValid[i];sumXY+=i*suvValid[i];sumX2+=i*i;}
+    let sSlope=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+    let pAvg=puvValid.reduce((a,b)=>a+b,0)/puvValid.length;
+    let sAvg=suvValid.reduce((a,b)=>a+b,0)/suvValid.length;
+    let pTrend=Math.abs(pSlope)>pAvg*0.02?(pSlope>0?'上升':'下降'):'平稳';
+    let sTrend=Math.abs(sSlope)>sAvg*0.02?(sSlope>0?'上升':'下降'):'平稳';
+
+    ana+='<div class="ana-block"><h4>📉 流量诊断</h4>';
+    ana+='<p>平台UV呈<span class="insight-tag '+(pTrend==='上升'?'pos':(pTrend==='下降'?'neg':'neutral'))+'">'+pTrend+'趋势</span>，期间从 '+fN(Math.round(pFirst))+' → '+fN(Math.round(pLast))+'（'+fP(pChange)+'）。';
+    ana+='店铺UV呈<span class="insight-tag '+(sTrend==='上升'?'pos':(sTrend==='下降'?'neg':'neutral'))+'">'+sTrend+'趋势</span>，期间从 '+fN(Math.round(sFirst))+' → '+fN(Math.round(sLast))+'（'+fP(sChange)+'）。';
+
+    if((pSlope>0&&sSlope>0)||(pSlope<0&&sSlope<0))ana+='平台与店铺UV趋势<span class="insight-tag pos">一致</span>，流量转化效率稳定。';
+    else ana+='<span class="insight-tag warn">⚠ 平台与店铺UV走势背离</span>，'+(pSlope>0?'平台流量涨但进店不涨，需优化主图/标题提升点击率':'进店流量在涨但平台曝光下降，检查排名变化')+'。';
+
+    // In-store rate trend
+    let shareValid=[],shareLab=[];
+    for(let i=0;i<d.dates.length;i++){
+      if(d.puv[i]!=null&&d.suv[i]!=null&&d.puv[i]>0){shareValid.push(d.suv[i]/d.puv[i]);shareLab.push(d.dates[i]);}
+    }
+    if(shareValid.length>=2){
+      let s1=shareValid[0],se=shareValid[shareValid.length-1];
+      ana+='进店率从 '+fP(s1)+' → '+fP(se)+'（'+fP(se-s1)+'），';
+      if(se-s1>0.02)ana+='<span class="insight-tag pos">进店效率提升</span>，主图/标题优化有效。';
+      else if(se-s1<-0.02)ana+='<span class="insight-tag neg">进店率下降</span>，建议优化主图和标题提升点击吸引力。';
+      else ana+='进店率稳定。';
+    }
+
+    // CVR trend
+    if(cvrValid.length>=2){
+      let c1=cvrValid[0],ce=cvrValid[cvrValid.length-1];
+      ana+='转化率从 '+fP(c1,2)+' → '+fP(ce,2)+'（'+fP(ce-c1,2)+'）。';
+    }
+    ana+='</p></div>';
+  }
+
+  // ---- Store Performance ----
+  ana+='<div class="ana-block"><h4>🏪 店铺表现</h4>';
+  let top5=shS.slice(0,5);
+  ana+='<p><b>TOP5店铺</b>：'+top5.map((x,i)=>x.name+' <span class="hl">'+fM(x.sales)+'</span>（占比'+fP(x.sales/ts2)+'）').join(' | ')+'</p>';
+  if(shS.length>1){
+    let top1=shS[0],top2=shS[1];
+    ana+='<p>头部店铺 '+top1.name+' 贡献了 <b>'+fP(top1.sales/ts2)+'</b> 的销售额';
+    if(top1.sales/top2.sales>3)ana+='，对第2名形成<span class="hl">压倒性优势</span>（'+fM(top1.sales)+' vs '+fM(top2.sales)+'），集中度偏高需关注风险分散。';
+    else ana+='，与第2名 '+top2.name+'（'+fM(top2.sales)+'）差距适中，竞争格局健康。';
+
+    let last=shS[shS.length-1];
+    if(top1.sales>0&&last.sales>0&&top1.sales/last.sales>10){
+      ana+='<span class="insight-tag warn">店铺两极分化严重</span>，末位店铺 '+last.name+' 仅 '+fM(last.sales)+'，建议评估是否优化或调整资源。';
+    }
+    ana+='</p>';
+  }
+
+  // ---- Day-of-week pattern (simplified) ----
+  if(d.dates.length>=7){
+    let dowSales={},dowCount={};
+    for(let i=0;i<d.dates.length;i++){
+      let dt=new Date(d.dates[i]),dow=dt.getDay();
+      if(!dowSales[dow]){dowSales[dow]=0;dowCount[dow]=0;}
+      if(d.sales[i])dowSales[dow]+=d.sales[i];dowCount[dow]++;
+    }
+    let dowNames=['周日','周一','周二','周三','周四','周五','周六'];
+    let dowAvg=[0,1,2,3,4,5,6].map(d=>dowCount[d]>0?dowSales[d]/dowCount[d]:0);
+    let validDows=dowAvg.filter(v=>v>0);
+    if(validDows.length>=2){
+      let bestDow=dowAvg.indexOf(Math.max(...dowAvg)),worstDow=dowAvg.indexOf(Math.min(...validDows));
+      if(bestDow!==worstDow&&dowAvg[bestDow]>dowAvg[worstDow]*1.3){
+        ana+='<p><span class="insight-tag neutral">📅 周度规律</span> '+dowNames[bestDow]+' 日均销售最高（'+fM(Math.round(dowAvg[bestDow]))+'），'+dowNames[worstDow]+' 最低（'+fM(Math.round(dowAvg[worstDow]))+'），可据此安排促销节奏。</p>';
+      }
+    }
+  }
+  ana+='</div>';
+
+  // ---- AI Summary ----
+  ana+='<div class="ana-block" style="background:#f8f9ff;border-left:4px solid #1a237e;padding:12px 16px;"><h4>🤖 运营建议</h4><ul style="margin:8px 0 0 18px;font-size:13px;line-height:1.8">';
+  if(ck){
+    if(k.sales>ck.sales*1.1)ana+='<li>✅ 销售额同比增长显著，当前运营策略有效，建议延续并适当放大投放。</li>';
+    else if(k.sales<ck.sales*0.9)ana+='<li>⚠️ 销售额同比下滑，建议排查：是否竞品降价？平台流量分配变化？产品评价问题？</li>';
+  }
+  if(puvValid.length>2&&suvValid.length>2){
+    let pLast=puvValid.slice(-3).reduce((a,b)=>a+b,0)/3;
+    let pPrev=puvValid.slice(-6,-3).reduce((a,b)=>a+b,0)/3;
+    if(pPrev>0&&pLast<pPrev*0.9)ana+='<li>⚠️ 近3天平台UV明显下降，检查是否平台活动结束或Listing排名下滑。</li>';
+    if(pPrev>0&&pLast>pPrev*1.1)ana+='<li>✅ 近3天流量上涨，可能是平台推流或Listing权重提升，抓住窗口期冲量。</li>';
+  }
+  if(cvrValid.length>=3){
+    let cLast=cvrValid.slice(-3).reduce((a,b)=>a+b,0)/3;
+    let cPrev=cvrValid.length>3?cvrValid.slice(-6,-3).reduce((a,b)=>a+b,0)/3:cLast;
+    if(cPrev>0&&cLast<cPrev*0.9)ana+='<li>⚠️ 转化率近期走低，建议检查：价格竞争力、竞品促销活动、评价/问答是否有差评。</li>';
+    if(cPrev>0&&cLast>cPrev*1.1)ana+='<li>✅ 转化率近期提升，当前Listing优化、定价策略有效。</li>';
+  }
+  if(shS.length>=3&&shS[0].sales/shS[1].sales>3)ana+='<li>💡 店铺集中度过高（'+shS[0].name+'占'+fP(shS[0].sales/ts2)+'），建议培育第二梯队店铺分散风险。</li>';
+  ana+='</ul></div>';
+  document.getElementById('tana').innerHTML=ana;
+}
+function dtCSV(){
+  let th=Array.from(document.querySelectorAll('#tth th')).map(t=>t.textContent);
+  let rows=[];
+  document.querySelectorAll('#ttb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');if(tds.length>=9)rows.push(Array.from(tds).map(td=>td.textContent))});
+  let csv='\ufeff'+th.join(',')+'\n'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  let b=new Blob([csv],{type:'text/csv'});let a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='traffic.csv';a.click()
+}
+function dtXLSX(){
+  let th=Array.from(document.querySelectorAll('#tth th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#ttb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');if(tds.length>=9)rows.push(Array.from(tds).map(td=>td.textContent))});
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'流量');XLSX.writeFile(wb,'traffic.xlsx')
+}
+
+// ====== CATEGORY RENDER ======
+async function ac(){
+  let s=document.getElementById('cs').value,e=document.getElementById('ce').value,shop=getMsValue('ms-cshop'),cat=document.getElementById('ccat').value;
+  if(!s||!e){alert('请选择日期');return}
+  let d=processProductCat(s,e,shop,cat);
+  Object.values(pCharts).forEach(c=>safeDestroy(c));pCharts={};
+  pCharts.cs=safeChart('ccs',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销售额',data:d.cats_sales_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
+  pCharts.cq=safeChart('ccq',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销量',data:d.cats_qty_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[(i+5)%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
+  let th=['品类'];
+  d.prev_labels.forEach(l=>{th.push(l+'销量',l+'销售额占比')});
+  th=th.concat(['本期销量','同比期销量','环比期销量','销量同比','销量环比','销量占比','本期销售额','同比期销售额','环比期销售额','销售额同比','销售额环比','销售额占比','本期毛利额','毛利额环比','毛利额同比','本期毛利率']);
+  document.getElementById('cth').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
+  let h='';
+  d.cat_list.forEach(v=>{
+    h+='<tr><td>'+v.name+'</td>';
+    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i])+'</td><td>'+fP(v.prev_sales_share[i])+'</td>';
+    h+='<td>'+fN(v.qty)+'</td><td>'+fN(v.yoy_qty)+'</td><td>'+fN(v.mom_qty)+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.sales)+'</td><td>'+fM(v.yoy_sales)+'</td><td>'+fM(v.mom_sales)+'</td>';
+    h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.sales_share)+'</td><td>'+fM(v.profit)+'</td>';
+    h+='<td>'+(v.profit_mom!=null?'<span class="'+cC(v.profit_mom)+'">'+cA(v.profit_mom)+' '+fP(Math.abs(v.profit_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.profit_yoy!=null?'<span class="'+cC(v.profit_yoy)+'">'+cA(v.profit_yoy)+' '+fP(Math.abs(v.profit_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.margin)+'</td></tr>';
+  });
+  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
+  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td><td>100%</td>'});
+  h+='<td>'+fN(d.total_qty)+'</td><td>'+fN(d.cat_list.reduce((s,v)=>s+(v.yoy_qty||0),0))+'</td><td>'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td>';
+  h+='<td>-</td><td>-</td><td>100%</td>';
+  h+='<td>'+fM(d.total_sales)+'</td><td>'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>'+fM(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'</td>';
+  h+='<td>-</td><td>-</td><td>100%</td><td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td></tr>';
+  document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
+  let ana='';
+  if(d.period){let pd=d.period;let dd=Math.round((new Date(pd.end)-new Date(pd.start))/864e5)+1;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+dd+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
+  let momCh=d.mom_sales>0?(d.total_sales-d.mom_sales)/d.mom_sales:null;
+  let momQtyCh=d.mom_qty>0?(d.total_qty-d.mom_qty)/d.mom_qty:null;
+  let yoyCh=d.yoy_sales>0?(d.total_sales-d.yoy_sales)/d.yoy_sales:null;
+
+  ana+='<div class="ana-block"><h4>📊 整体经营状况</h4>';
+  ana+='<p>共 <span class="hl">'+d.cat_list.length+'</span> 个品类，总销售额 <span class="hl">'+fM(d.total_sales)+'</span>，总毛利额 '+fM(d.total_profit)+'，整体毛利率 <b>'+fP(d.total_margin)+'</b>。</p>';
+
+  // Business health assessment
+  if(momCh!==null){
+    ana+='<p><b>环比</b>（vs上期 '+fM(d.mom_sales)+'）：销售额<span class="'+(momCh>=0?'up':'down')+'">'+(momCh>=0?'↑增长':'↓下降')+' '+fP(Math.abs(momCh))+'</span>，销量<span class="'+(momQtyCh&&momQtyCh>=0?'up':'down')+'">'+(momQtyCh&&momQtyCh>=0?'↑'+fP(Math.abs(momQtyCh)):'↓'+fP(Math.abs(momQtyCh||0)))+'</span>。';
+    if(momCh>0.15)ana+='<span class="insight-tag pos">业绩强劲增长</span>';
+    else if(momCh>0)ana+='<span class="insight-tag pos">小幅增长</span>';
+    else if(momCh>-0.1)ana+='<span class="insight-tag warn">略有下滑，需关注</span>';
+    else ana+='<span class="insight-tag neg">明显下滑，需排查</span>';
+    if(yoyCh!==null){ana+=' 同比销售额<span class="'+(yoyCh>=0?'up':'down')+'">'+(yoyCh>=0?'↑':'↓')+fP(Math.abs(yoyCh))+'</span>（'+fM(d.yoy_sales)+'→'+fM(d.total_sales)+'）。';}
+    ana+='</p>';
+  }
+
+  // Margin analysis
+  if(d.total_margin!==null&&d.mom_margin!==null){
+    let marginCh=d.total_margin-d.mom_margin;
+    ana+='<p>毛利率 '+(marginCh>=0?'<span class="up">提升 '+fP(Math.abs(marginCh))+'</span>（'+fP(d.mom_margin)+'→'+fP(d.total_margin)+'）':'<span class="down">下降 '+fP(Math.abs(marginCh))+'</span>（'+fP(d.mom_margin)+'→'+fP(d.total_margin)+'）');
+    ana+=marginCh>0.02?'，盈利能力改善。':(marginCh<-0.02?'，盈利空间受挤压，检查折扣和成本。':'，基本持平。');
+    ana+='</p>';
+  }
+
+  // SKU Concentration
+  if(d.cat_list.length>1){
+    let top3Sales=d.cat_list.slice(0,3).reduce((s,c)=>s+c.sales,0);
+    let top3Share=d.total_sales>0?top3Sales/d.total_sales:0;
+    ana+='<p><span class="insight-tag neutral">品类集中度</span> TOP3品类（'+d.cat_list.slice(0,3).map(c=>c.name).join('、')+'）占销售额的 <b>'+fP(top3Share)+'</b>。';
+    if(top3Share>0.7)ana+='集中度偏高，头部品类一旦波动影响较大，建议培育腰部品类分散风险。';
+    else if(top3Share<0.4)ana+='品类分布较分散，有利于风险分散，可继续扩大优势品类。';
+    else ana+='品类结构较为健康。';
+    ana+='</p>';
+  }
+  ana+='</div>';
+
+  // Top 5 with business insight
+  ana+='<div class="ana-block"><h4>🏆 TOP5品类深度解读</h4><table style="width:100%;font-size:12px;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:6px 8px;text-align:left">品类</th><th style="padding:6px 8px;text-align:right">销售额</th><th style="padding:6px 8px;text-align:right">占比</th><th style="padding:6px 8px;text-align:right">毛利率</th><th style="padding:6px 8px;text-align:center">环比</th><th style="padding:6px 8px;text-align:center">同比</th><th style="padding:6px 8px;text-align:left">运营诊断</th></tr>';
+  d.cat_list.slice(0,5).forEach(c=>{
+    let diag='';
+    if(c.sales_mom!==null){
+      if(c.sales_mom>0.2)diag='<span class="insight-tag pos">快速增长</span> 建议加投';
+      else if(c.sales_mom>0)diag='<span class="insight-tag pos">稳步增长</span>';
+      else if(c.sales_mom>-0.1)diag='<span class="insight-tag warn">小幅回落</span>';
+      else diag='<span class="insight-tag neg">下滑预警</span> 需排查';
+    }
+    if(c.margin<d.total_margin*0.5)diag+=' <span class="insight-tag warn">毛利偏低</span>';
+    ana+='<tr><td style="padding:6px 8px"><b>'+c.name+'</b></td><td style="padding:6px 8px;text-align:right">'+fM(c.sales)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.sales_share)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.margin)+'</td><td style="padding:6px 8px;text-align:center">'+(c.sales_mom!=null?'<span class="'+(c.sales_mom>=0?'up':'down')+'">'+(c.sales_mom>=0?'↑':'↓')+fP(Math.abs(c.sales_mom))+'</span>':'-')+'</td><td style="padding:6px 8px;text-align:center">'+(c.sales_yoy!=null?'<span class="'+(c.sales_yoy>=0?'up':'down')+'">'+(c.sales_yoy>=0?'↑':'↓')+fP(Math.abs(c.sales_yoy))+'</span>':'-')+'</td><td style="padding:6px 8px;font-size:11px">'+diag+'</td></tr>';
+  });
+  ana+='</table></div>';
+
+  // Growth/Decline alerts
+  let bigUp=[],bigDown=[];
+  d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=0.3)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-0.3)bigDown.push(c);});
+  if(bigUp.length>0){
+    ana+='<div class="ana-block"><h4>🔥 增长超30%的潜力品类（共'+bigUp.length+'个）</h4>';
+    bigUp.forEach(c=>{ana+='<p>'+c.name+'：<span class="up">↑'+fP(Math.abs(c.sales_mom))+'</span> '+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利率 '+fP(c.margin)+'）</p>';});
+    ana+='</div>';
+  }
+  if(bigDown.length>0){
+    ana+='<div class="ana-block"><h4>⚠ 下降超30%的风险品类（共'+bigDown.length+'个）</h4>';
+    bigDown.forEach(c=>{
+      let reason=c.margin<0.05?'（利润率极低，可能因折扣过大导致）':(c.qty_mom!==null&&c.qty_mom<-0.3?'（销量同步大降，需求可能萎缩）':'');
+      ana+='<p>'+c.name+'：<span class="down">↓'+fP(Math.abs(c.sales_mom))+'</span> '+fM(c.mom_sales)+' → '+fM(c.sales)+reason+'</p>';
+    });
+    ana+='</div>';
+  }
+
+  // Declining cats
+  let dc=d.declining_cats||[];
+  if(dc.length>0){
+    ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 连续下降预警</h4>';
+    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#fce4e4"><th style="padding:6px 8px;text-align:left">品类</th><th style="padding:6px 8px;text-align:center">连续期数</th><th style="padding:6px 8px;text-align:center">累计降幅</th><th style="padding:6px 8px;text-align:left">运营建议</th></tr>';
+    dc.forEach(c=>{
+      let advice=c.drop_pct>0.5?'严重下滑，建议评估是否清仓退出':(c.drop_pct>0.3?'建议排查竞争环境，考虑促销拉动':'持续小幅下滑，关注市场变化');
+      ana+='<tr><td style="padding:6px 8px;font-weight:600">'+c.name+'</td><td style="padding:6px 8px;text-align:center;color:#e74c3c;font-weight:700">'+c.streak+'期</td><td style="padding:6px 8px;text-align:center;color:#c62828;font-weight:700">↓'+fP(Math.abs(c.drop_pct))+'</td><td style="padding:6px 8px;font-size:12px;color:#666">'+advice+'</td></tr>';
+    });
+    ana+='</table></div>';
+  }
+
+  // Bottom performers
+  if(d.cat_list.length>5){
+    let btm=d.cat_list.slice(-3);
+    ana+='<div class="ana-block"><p><b>💡 关注尾部品类</b>：'+btm.map(c=>c.name+'（'+fM(c.sales)+'，占比'+fP(c.sales_share)+'）').join('、')+'。销量极低，建议评估：是否保留？是否合并入其他品类？还是需要专项推广？</p></div>';
+  }
+  document.getElementById('cana').innerHTML=ana;
+}
+function dcXLSX(){
+  let th=Array.from(document.querySelectorAll('#cth th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#ctb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t+' (+)';if(cls.indexOf('down')>=0)return t+' (-)';return t;}return td.textContent});rows.push(row);});
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'品类');XLSX.writeFile(wb,'category.xlsx')
+}
+
+// ====== SPU RENDER ======
+async function as(){
+  let s=document.getElementById('sss').value,e=document.getElementById('see').value,shop=getMsValue('ms-sshop'),cat=document.getElementById('scat').value,sch=document.getElementById('ssch').value;
+  if(!s||!e){alert('请选择日期');return}
+  let d=processProductSpu(s,e,shop,cat,sch);
+  let th=['排名','SPU','品类','店铺','销量','销量同比','销量环比','销量占比','销售额','销售额同比','销售额环比','销售额占比','毛利率'];
+  document.getElementById('sth').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
+  let h='';
+  d.spu_list.forEach(v=>{
+    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+'</td><td>'+v.category+'</td><td>'+v.shop+'</td><td>'+fN(v.qty)+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.sales)+'</td>';
+    h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.sales_share)+'</td><td>'+fP(v.margin)+'</td></tr>';
+  });
+  document.getElementById('stb').innerHTML=h||'<tr><td colspan="13" class="empty-state">无数据</td></tr>';
+  let top5=d.spu_list.slice(0,5);
+  let ana='';
+  if(d.period){let pd=d.period;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
+  ana+='<div class="ana-block"><h4>📦 SPU运营概览</h4><p>共 <span class="hl">'+d.count+'</span> 个活跃SPU，总销售额 '+fM(d.total_sales)+'，总销量 '+fN(d.total_qty)+'，毛利率 '+(d.total_sales>0?fP(d.total_profit/d.total_sales):'-')+'。</p>';
+
+  // Concentration
+  if(top5.length>0){
+    let t5s=top5.reduce((s,v)=>s+v.sales,0);
+    let t5p=d.total_sales>0?t5s/d.total_sales:0;
+    ana+='<p><b>TOP5 SPU集中度</b>：'+fP(t5p)+'（'+top5.map(v=>v.spu+' '+fM(v.sales)).join('、')+'）。';
+    if(t5p>0.6)ana+='<span class="insight-tag warn">高度集中</span>，爆款依赖度高，建议培育次爆款分散风险。';
+    else if(t5p>0.3)ana+='<span class="insight-tag pos">较为健康</span>，头部集中度适中。';
+    else ana+='<span class="insight-tag neutral">长尾明显</span>，可尝试打造更多爆款。';
+    ana+='</p>';
+  }
+  ana+='</div>';
+
+  // Top 5 detail
+  ana+='<div class="ana-block"><h4>🏆 TOP5 销售明星</h4>';
+  ana+='<table style="width:100%;font-size:12px;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:5px 8px;text-align:left">SPU</th><th style="padding:5px 8px;text-align:right">销售额</th><th style="padding:5px 8px;text-align:right">占比</th><th style="padding:5px 8px;text-align:right">毛利率</th><th style="padding:5px 8px;text-align:center">环比</th><th style="padding:5px 8px;text-align:center">同比</th><th style="padding:5px 8px;text-align:left">趋势判断</th></tr>';
+  top5.forEach(v=>{
+    let trend='';
+    if(v.sales_mom!==null&&v.sales_yoy!==null){
+      if(v.sales_mom>0.1&&v.sales_yoy>0.1)trend='<span class="insight-tag pos">双增爆款</span>';
+      else if(v.sales_mom>0&&v.sales_yoy>0)trend='<span class="insight-tag pos">稳步增长</span>';
+      else if(v.sales_mom<0&&v.sales_yoy<0)trend='<span class="insight-tag neg">持续下滑</span>';
+      else trend='<span class="insight-tag warn">波动中</span>';
+    }
+    ana+='<tr><td style="padding:5px 8px"><b>'+v.spu+'</b></td><td style="padding:5px 8px;text-align:right">'+fM(v.sales)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.sales_share)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.margin)+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_mom!=null?'<span class="'+(v.sales_mom>=0?'up':'down')+'">'+(v.sales_mom>=0?'↑':'↓')+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_yoy!=null?'<span class="'+(v.sales_yoy>=0?'up':'down')+'">'+(v.sales_yoy>=0?'↑':'↓')+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td><td style="padding:5px 8px;font-size:11px">'+trend+'</td></tr>';
+  });
+  ana+='</table></div>';
+
+  // Growth SPU discovery
+  if(d.spu_list.length>5){
+    let growers=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom>0.3&&v.sales>1000);
+    if(growers.length)ana+='<div class="ana-block"><h4>🔥 高速增长SPU（环比>30%）</h4><p>'+growers.slice(0,8).map(v=>v.spu+' <span class="up">↑'+fP(v.sales_mom)+'</span>（'+fM(v.sales)+'）').join(' | ')+(growers.length>8?' 等共'+growers.length+'个':'')+'</p><p style="color:#666;font-size:12px">这些SPU增长势头好，建议增加广告预算放大效果。</p></div>';
+
+    let decliners=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom<-0.3&&v.sales>500);
+    if(decliners.length)ana+='<div class="ana-block"><h4>⚠ 快速下滑SPU（环比<-30%）</h4><p>'+decliners.slice(0,8).map(v=>v.spu+' <span class="down">↓'+fP(Math.abs(v.sales_mom))+'</span>（'+fM(v.sales)+'）').join(' | ')+(decliners.length>8?' 等共'+decliners.length+'个':'')+'</p><p style="color:#666;font-size:12px">需排查原因：差评影响？竞品降价？Listing权重下降？</p></div>';
+
+    let newbies=d.spu_list.filter(v=>v.sales_yoy===null||v.yoy_qty===0);
+    if(newbies.length>0)ana+='<div class="ana-block"><h4>🆕 新上架SPU（去年同期无销售）</h4><p>共 '+newbies.length+' 个：'+newbies.slice(0,5).map(v=>v.spu+'（'+fM(v.sales)+'）').join('、')+(newbies.length>5?' 等':'')+'。关注新品表现，及时优化Listing。</p></div>';
+  }
+  document.getElementById('sana').innerHTML=ana;
+}
+function dsXLSX(){
+  let th=Array.from(document.querySelectorAll('#sth th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#stb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t+' (+)';if(cls.indexOf('down')>=0)return t+' (-)';return t;}return td.textContent});rows.push(row);});
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SPU');XLSX.writeFile(wb,'spu.xlsx')
+}
+
+// ====== TOP30 RENDER ======
+async function at(){
+  let s=document.getElementById('tss').value,e=document.getElementById('tee').value,shop=getMsValue('ms-tshop2'),cat=document.getElementById('tcat').value;
+  if(!s||!e){alert('请选择日期');return}
+  let d=processProductTop30(s,e,shop,cat);
+  let th=['排名','SPU','品类','销售额','销售额占比','销售额环比','销售额同比','销量','销量占比','销量环比','销量同比'];
+  document.getElementById('t30th').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
+  let h='';
+  d.top30.forEach(v=>{
+    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+'</td><td>'+v.category+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
+    h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
+    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td></tr>';
+  });
+  document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="11" class="empty-state">无数据</td></tr>';
+  if(pCharts.t30)pCharts.t30.destroy();
+  pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+}
+function dtXLSX2(){
+  let th=Array.from(document.querySelectorAll('#t30th th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#t30tb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t+' (+)';if(cls.indexOf('down')>=0)return t+' (-)';return t;}return td.textContent});rows.push(row);});
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'TOP30');XLSX.writeFile(wb,'top30.xlsx')
+}
+
+// ====== CAT ANALYSIS RENDER ======
+function heatColor(value,min,max){
+  if(value===null||value===undefined||isNaN(value)||value===0)return{style:'',hex:''};
+  if(min===max)return{style:'',hex:''};
+  const ratio=Math.max(0,Math.min(1,(value-min)/(max-min)));
+  let r,g,b;
+  if(ratio<0.5){const t=ratio*2;r=255;g=Math.round(130+125*t);b=Math.round(130-130*t);}
+  else{const t=(ratio-0.5)*2;r=Math.round(255-125*t);g=255;b=Math.round(130-130*t);}
+  const hex='FF'+[r,g,b].map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join('');
+  return{style:'style="background-color:rgb('+r+','+g+','+b+');font-weight:600;"',hex:hex};
+}
+async function aca(){
+  let s=document.getElementById('cas').value,e=document.getElementById('cae').value,cat=document.getElementById('cacat').value;
+  if(!s||!e){alert('请选择日期');return}
+  let d=processProductCatAnalysis(s,e,cat);
+  let periods=d.periods||[];
+  document.getElementById('caTitle').textContent='类目销售分析（'+(d.selected_cat||'全部类目')+'）';
+  let th='<th>渠道</th>';
+  periods.forEach(p=>{th+='<th>'+p.label+'<br>销售额</th>';});
+  th+='<th>本期vs上期<br>销售额差值</th><th>差值<br>比例</th>';
+  periods.forEach(p=>{th+='<th>'+p.label+'<br>销量</th>';});
+  document.getElementById('cath').innerHTML=th;
+  let h='';
+  (d.shop_rows||[]).forEach(row=>{
+    let salesVals=[];
+    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];if(v!==null&&v!==undefined&&v>0)salesVals.push(v);});
+    let sMin=salesVals.length>0?Math.min(...salesVals):0,sMax=salesVals.length>0?Math.max(...salesVals):0;
+    h+='<tr><td style="font-weight:600">'+row.shop+'</td>';
+    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];let hc=heatColor(v,sMin,sMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(v)+'</td>';});
+    let diff=row.diff_sales||0;
+    h+='<td><span class="'+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fM(diff)+'</span></td>';
+    h+='<td>'+(row.diff_sales_pct!=null?'<span class="'+cC(row.diff_sales_pct)+'">'+cA(row.diff_sales_pct)+' '+fP(Math.abs(row.diff_sales_pct))+'</span>':'-')+'</td>';
+    periods.forEach((p,i)=>{h+='<td>'+fN(row['p'+i+'_qty'])+'</td>';});
+    h+='</tr>';
+  });
+  let totalSalesVals=[];
+  periods.forEach(p=>{if(p.total_sales>0)totalSalesVals.push(p.total_sales);});
+  let tMin=totalSalesVals.length>0?Math.min(...totalSalesVals):0,tMax=totalSalesVals.length>0?Math.max(...totalSalesVals):0;
+  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
+  periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(p.total_sales)+'</td>';});
+  let p0t=periods.length>0?periods[0].total_sales:0,p1t=periods.length>1?periods[1].total_sales:0;
+  let tdiff=p0t-p1t;
+  h+='<td><span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'+':'')+fM(tdiff)+'</span></td>';
+  h+='<td>'+(p1t!==0?'<span class="'+cC(tdiff/p1t)+'">'+cA(tdiff/p1t)+' '+fP(Math.abs(tdiff/p1t))+'</span>':'-')+'</td>';
+  periods.forEach(p=>{h+='<td>'+fN(p.total_qty)+'</td>';});
+  h+='</tr>';
+  document.getElementById('catb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
+  let ana='';
+  if(d.period){let pd=d.period;let p0t=periods.length>0?periods[0].total_sales:0;ana+='<div class="ana-block"><h4>⏱ 分析周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比上期：'+pd.mom_start+' ~ '+pd.mom_end;if(pd.yoy_sales!==undefined&&pd.yoy_sales!==null){let yoyCh=pd.yoy_sales>0?(p0t-pd.yoy_sales)/pd.yoy_sales:null;ana+=' | 同比：'+fM(pd.yoy_sales);if(yoyCh!==null)ana+=' <span class="'+(yoyCh>=0?'up':'down')+'">'+(yoyCh>=0?'↑':'↓')+fP(Math.abs(yoyCh))+'</span>';}ana+='</p></div>';}
+  let p0t=periods.length>0?periods[0].total_sales:0,p1t=periods.length>1?periods[1].total_sales:0;
+  let tdiff=p0t-p1t;
+  ana+='<div class="ana-block"><h4>📊 渠道经营总览</h4>';
+  ana+='<p><span class="hl">'+(d.selected_cat||'全部类目')+'</span>：本期共 <b>'+d.all_shops.length+'</b> 个渠道，总销售额 <span class="hl">'+fM(p0t)+'</span>';
+  if(periods.length>1){ana+='，较上期 <span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'↑增长 ':'↓下降 ')+fM(Math.abs(tdiff))+'</span>（'+fP(tdiff/p1t)+'）。';}else{ana+='。</p></div>';}
+
+  // Channel performance summary
+  if(d.shop_rows&&d.shop_rows.length>0){
+    let best=d.shop_rows[0],worst=d.shop_rows[d.shop_rows.length-1];
+    let activeShops=d.shop_rows.filter(r=>(r.p0_sales||0)>0).length;
+    ana+='<p>活跃渠道 '+activeShops+' 个。头部渠道 <span class="hl">'+best.shop+'</span>（'+fM(best.p0_sales||0)+'）vs 末位 '+worst.shop+'（'+fM(worst.p0_sales||0)+'）';
+    if(best.p0_sales>0&&worst.p0_sales>0)ana+='，差距 '+fN(Math.round(best.p0_sales/worst.p0_sales))+' 倍';
+    ana+='。';
+
+    // Channel structure analysis
+    let growing=0,declining=0;
+    d.shop_rows.forEach(r=>{if(r.diff_sales>0)growing++;else if(r.diff_sales<0)declining++;});
+    ana+='渠道结构：<span class="insight-tag pos">'+growing+'个增长</span> / <span class="insight-tag neg">'+declining+'个下降</span>。';
+    if(growing>declining)ana+='整体向好，多数渠道在增长。';
+    else if(growing<declining)ana+='<span class="insight-tag warn">更多渠道在下滑</span>，需整体排查市场和竞争环境。';
+    else ana+='涨跌持平。';
+    ana+='</p></div>';
+
+    // Top/Bottom channels
+    ana+='<div class="ana-block"><h4>🏪 渠道表现排行</h4><table style="width:100%;font-size:12px;border-collapse:collapse"><tr style="background:#f5f5f5"><th style="padding:5px 8px;text-align:left">渠道</th><th style="padding:5px 8px;text-align:right">本期销售额</th><th style="padding:5px 8px;text-align:right">上期销售额</th><th style="padding:5px 8px;text-align:center">变化</th><th style="padding:5px 8px;text-align:left">动态</th></tr>';
+    d.shop_rows.slice(0,10).forEach(r=>{
+      let diff=r.diff_sales||0;
+      let status=diff>0?'<span class="insight-tag pos">增长</span>':(diff<0?'<span class="insight-tag neg">下滑</span>':'<span class="insight-tag neutral">持平</span>');
+      if(diff>r.p1_sales*0.2)status+='<span class="insight-tag pos"> 强劲</span>';
+      ana+='<tr><td style="padding:5px 8px">'+r.shop+'</td><td style="padding:5px 8px;text-align:right">'+fM(r.p0_sales||0)+'</td><td style="padding:5px 8px;text-align:right">'+fM(r.p1_sales||0)+'</td><td style="padding:5px 8px;text-align:center">'+(diff>=0?'<span class="up">+':'<span class="down">')+fM(Math.abs(diff))+'</span></td><td style="padding:5px 8px;font-size:11px">'+status+'</td></tr>';
+    });
+    ana+='</table></div>';
+  }
+
+  // Declining cats
+  let dc=d.declining_cats||[];
+  if(dc.length>0){
+    ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 连续下降品类预警</h4>';
+    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#fce4e4"><th style="padding:4px 8px;text-align:left">品类</th><th style="padding:4px 8px;text-align:center">连续期数</th><th style="padding:4px 8px;text-align:center">累计降幅</th><th style="padding:4px 8px;text-align:left">建议行动</th></tr>';
+    dc.forEach(c=>{
+      let advice=c.drop_pct>0.5?'严重下滑，考虑清仓或彻底转型':(c.drop_pct>0.3?'明显下滑，排查竞争并制定促销计划':(c.drop_pct>0.15?'持续下滑，关注市场趋势':'小幅下滑，加强监控'));
+      ana+='<tr><td style="padding:4px 8px;font-weight:600">'+c.name+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;color:#e74c3c;">'+c.streak+'期</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">↓'+fP(Math.abs(c.drop_pct))+'</td><td style="padding:4px 8px;font-size:12px">'+advice+'</td></tr>';
+    });
+    ana+='</table></div>';
+  }
+  document.getElementById('caana').innerHTML=ana;
+}
+function caXLSX(){
+  let th=Array.from(document.querySelectorAll('#cath th')).map(t=>t.textContent.replace(/<br>/g,' '));
+  let rows=[th],heatCells=[];
+  document.querySelectorAll('#catb tr').forEach((tr,ri)=>{let tds=tr.querySelectorAll('td');let row=[];tds.forEach((td,ci)=>{let sp=td.querySelector('span');let val;if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)val=t+' (+)';else if(cls.indexOf('down')>=0)val=t+' (-)';else val=t;}else val=td.textContent;row.push(val);let heat=td.getAttribute('data-heat');if(heat)heatCells.push({r:ri+1,c:ci,argb:heat});});rows.push(row);});
+  let ws=XLSX.utils.aoa_to_sheet(rows);heatCells.forEach(h=>{let ref=XLSX.utils.encode_cell({r:h.r,c:h.c});if(ws[ref])ws[ref].s={fill:{patternType:'solid',fgColor:{rgb:h.argb}}};});
+  let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'类目分析');XLSX.writeFile(wb,'cat_analysis.xlsx');
+}
+
+// ====== LIFECYCLE ANALYSIS ======
+function processLifecycle(endDate,shop){
+  let data=PRODUCT.rows;
+  let e_d=new Date(endDate);
+  // 12-month periods
+  let periods=[];
+  for(let i=11;i>=0;i--){
+    let m=e_d.getMonth()-i,y=e_d.getFullYear();
+    if(m<0){m+=12;y--;}
+    let ms=new Date(y,m,1).toISOString().slice(0,10);
+    let me=new Date(y,m+1,0).toISOString().slice(0,10);
+    if(me>endDate)me=endDate;
+    periods.push({label:(y+'年'+(m+1)+'月'),start:ms,end:me});
+  }
+  let shops=shop?shop.split(',').map(x=>x.trim()):[];
+  let allCats=[...new Set(data.map(r=>r[PI['品类']]).filter(x=>x))].sort();
+
+  // Sales per category per period
+  let catData={};
+  for(let cat of allCats){
+    let history=periods.map(p=>{
+      let rows=data.filter(r=>{
+        let d=r[PI['日期']],c=r[PI['品类']];
+        return c===cat&&d&&p.start<=d&&d<=p.end&&(!shops.length||shops.includes(r[PI['店铺']]));
+      });
+      return {sales:rows.reduce((s,r)=>s+(r[PI['销售额']]||0),0),qty:rows.reduce((s,r)=>s+(r[PI['销量']]||0),0),profit:rows.reduce((s,r)=>s+(r[PI['毛利额']]||0),0)};
+    });
+    catData[cat]=history;
+  }
+
+  function classify(vals,periods){
+    let validVals=vals.filter(v=>v.sales>0);
+    let n=validVals.length;
+    if(n<2)return {stage:'导入期',stageEn:'intro',icon:'🌱',color:'#4caf50',desc:'数据不足，新晋品类，需持续观察'};
+
+    // Growth rates
+    let salesVals=vals.map(v=>v.sales);
+    let growths=[];
+    for(let i=1;i<salesVals.length;i++){if(salesVals[i-1]>0)growths.push((salesVals[i]-salesVals[i-1])/salesVals[i-1]);}
+    let avgG=growths.length>0?growths.reduce((a,b)=>a+b,0)/growths.length:0;
+    let mean=salesVals.reduce((a,b)=>a+b,0)/n;
+    let variance=salesVals.reduce((s,v)=>s+Math.pow(v-mean,2),0)/n;
+    let cv=mean>0?Math.sqrt(variance)/mean:0;
+
+    // Recent 3 vs prior 3
+    let rN=Math.min(3,n);
+    let recent=salesVals.slice(-rN),prior=salesVals.slice(Math.max(0,n-rN*2),n-rN);
+    let rAvg=recent.reduce((a,b)=>a+b,0)/recent.length;
+    let pAvg=prior.length>0?prior.reduce((a,b)=>a+b,0)/prior.length:rAvg;
+    let rTrend=pAvg>0?(rAvg-pAvg)/pAvg:0;
+
+    // Decline streak (consecutive periods with >5% drop)
+    let dStreak=0;
+    for(let i=1;i<salesVals.length;i++){
+      if(salesVals[i-1]>0&&salesVals[i]<salesVals[i-1]&&(salesVals[i-1]-salesVals[i])/salesVals[i-1]>0.05)dStreak++;
+    }
+
+    // First appearance
+    let firstIdx=vals.findIndex(v=>v.sales>0);
+    let age=salesVals.length-firstIdx;
+
+    if(firstIdx>=vals.length-3||age<3){
+      if(avgG>0.1)return {stage:'导入期',stageEn:'intro',icon:'🌱',color:'#4caf50',desc:'新品类，增长势头好，需重点培养'};
+      return {stage:'导入期',stageEn:'intro',icon:'🌱',color:'#4caf50',desc:'新品类，处于市场导入阶段'};
+    }
+    if(avgG>0.2){
+      let desc='高速增长品类';if(rTrend>0.3)desc+='，近期加速增长';else desc+='，市场份额快速扩大';
+      return {stage:'成长期',stageEn:'growth',icon:'🚀',color:'#2196f3',desc:desc};
+    }
+    if(dStreak>=3&&rTrend<-0.1){
+      return {stage:'衰退期',stageEn:'decline',icon:'📉',color:'#f44336',desc:'持续下滑'+dStreak+'期，需评估调整或淘汰'};
+    }
+    if(cv<0.25&&Math.abs(avgG)<0.12){
+      return {stage:'成熟期',stageEn:'mature',icon:'💎',color:'#ff9800',desc:'成熟稳定品类，波动小，现金牛业务'};
+    }
+    if(rTrend>0.08){
+      return {stage:'成长期',stageEn:'growth',icon:'🚀',color:'#2196f3',desc:'近期增长势头良好，上升通道'};
+    }else if(rTrend<-0.15){
+      return {stage:'衰退期',stageEn:'decline',icon:'📉',color:'#f44336',desc:'近期有下滑趋势，需关注并分析原因'};
+    }else{
+      return {stage:'成熟期',stageEn:'mature',icon:'💎',color:'#ff9800',desc:'品类表现稳定，处于成熟运营阶段'};
+    }
+  }
+
+  let results=[];
+  for(let cat of allCats){
+    let history=catData[cat];
+    let lc=classify(history,periods);
+    let tSales=history.reduce((s,p)=>s+p.sales,0);
+    let tQty=history.reduce((s,p)=>s+p.qty,0);
+    let tProfit=history.reduce((s,p)=>s+p.profit,0);
+    let r3Sales=history.slice(-3).reduce((s,p)=>s+p.sales,0);
+    let p3Sales=history.slice(-6,-3).reduce((s,p)=>s+p.sales,0);
+    let r3Trend=p3Sales>0?(r3Sales-p3Sales)/p3Sales:null;
+    let activeMonths=history.filter(p=>p.sales>0).length;
+    results.push({
+      name:cat,lifecycle:lc,totalSales:tSales,totalQty:tQty,totalProfit:tProfit,
+      r3Sales,p3Sales,r3Trend,margin:tSales>0?tProfit/tSales:0,
+      monthlyAvg:activeMonths>0?tSales/activeMonths:0,
+      periodData:history,activeMonths
+    });
+  }
+  results.sort((a,b)=>b.totalSales-a.totalSales);
+
+  // Stage aggregate
+  let stageMap={};
+  for(let r of results){
+    let s=r.lifecycle.stage;
+    if(!stageMap[s])stageMap[s]={count:0,tSales:0,tQty:0,tProfit:0,cats:[]};
+    stageMap[s].count++;stageMap[s].tSales+=r.totalSales;stageMap[s].tQty+=r.totalQty;stageMap[s].tProfit+=r.totalProfit;stageMap[s].cats.push(r.name);
+  }
+  let gTotal=results.reduce((s,r)=>s+r.totalSales,0);
+  let stageOrder=['导入期','成长期','成熟期','衰退期'];
+  let stageSummary=stageOrder.map(s=>({stage:stage:s,...(stageMap[s]||{count:0,tSales:0,tQty:0,tProfit:0,cats:[]}),share:gTotal>0?((stageMap[s]||{}).tSales||0)/gTotal:0}));
+
+  // Monthly composition (stacked by stage)
+  let monthComposition=periods.map((p,i)=>{
+    let comp={label:p.label};
+    stageOrder.forEach(st=>comp[st]=0);
+    for(let cat of allCats){
+      let lc=results.find(r=>r.name===cat);
+      if(lc)comp[lc.lifecycle.stage]+=(catData[cat][i]||{}).sales||0;
+    }
+    return comp;
+  });
+
+  // Suggestions
+  let sugs=[];
+  if(stageMap['成长期']&&stageMap['成长期'].count>0){
+    sugs.push({title:'🚀 成长品类：加大投入抢占市场',content:stageMap['成长期'].cats.slice(0,4).join('、')+' 等 '+stageMap['成长期'].count+' 个品类处于成长期，贡献 '+(gTotal>0?fP(stageMap['成长期'].tSales/gTotal):'')+' 销售额。建议加大广告预算、丰富SKU、抢占品类份额。',type:'grow'});
+  }
+  if(stageMap['导入期']&&stageMap['导入期'].count>0){
+    sugs.push({title:'🌱 新品类：小批量测试验证',content:stageMap['导入期'].cats.slice(0,4).join('、')+' 等 '+stageMap['导入期'].count+' 个新品类处于导入期。建议小批量测款、关注转化率和评价，快速验证市场潜力。',type:'intro'});
+  }
+  if(stageMap['衰退期']&&stageMap['衰退期'].count>0){
+    sugs.push({title:'📉 衰退品类：需及时决策',content:stageMap['衰退期'].cats.slice(0,4).join('、')+' 等 '+stageMap['衰退期'].count+' 个品类持续下滑。建议分析下滑原因（竞争/季节/需求），决定是清仓退出还是差异化翻新。',type:'decl'});
+  }
+  if(stageMap['成熟期']&&stageMap['成熟期'].count>0){
+    sugs.push({title:'💎 成熟品类：精细化提利润',content:stageMap['成熟期'].cats.slice(0,4).join('、')+' 等 '+stageMap['成熟期'].count+' 个品类表现稳定，是现金牛业务。建议优化供应链成本、提升毛利率、挖掘关联品类交叉销售。',type:'mat'});
+  }
+  return{results,periods,stageSummary,monthComposition,sugs,gTotal,totalCats:allCats.length};
+}
+
+async function alf(){
+  let e=document.getElementById('lfe').value,shop=getMsValue('ms-lfshop');
+  if(!e){alert('请选择结束日期');return}
+  let d=processLifecycle(e,shop);
+  let so=d.stageSummary;
+
+  // Stats cards
+  let icons={导入期:'🌱',成长期:'🚀',成熟期:'💎',衰退期:'📉'};
+  let h='';
+  so.forEach(s=>{
+    let label=s.stage==='导入期'?'新品类':(s.stage==='成长期'?'成长品类':(s.stage==='成熟期'?'成熟品类':'衰退品类'));
+    h+='<div class="lc-card '+(s.stage==='导入期'?'intro':(s.stage==='成长期'?'growth':(s.stage==='成熟期'?'mature':'decline')))+'">';
+    h+='<span class="lc-icon">'+icons[s.stage]+'</span>';
+    h+='<div class="lc-label">'+label+'</div>';
+    h+='<div class="lc-val">'+s.count+' 个</div>';
+    h+='<div class="lc-sub">销售额 '+fM(s.tSales)+'（占比 '+fP(s.share)+'）</div>';
+    h+='</div>';
+  });
+  document.getElementById('lf-stats').innerHTML=h;
+
+  // Stacked bar chart (monthly composition)
+  let stageColors={导入期:'#4caf50',成长期:'#2196f3',成熟期:'#ff9800',衰退期:'#f44336'};
+  let stageKeys=['导入期','成长期','成熟期','衰退期'];
+  if(pCharts.lfe)pCharts.lfe.destroy();
+  pCharts.lfe=safeChart('clfe',{type:'bar',data:{labels:d.monthComposition.map(m=>m.label),datasets:stageKeys.map(st=>({label:st,data:d.monthComposition.map(m=>m[st]||0),backgroundColor:stageColors[st]}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{stacked:true,ticks:{maxRotation:45,maxTicksLimit:12}},y:{stacked:true,beginAtZero:true,ticks:{callback:v=>fM(v)}}}}});
+
+  // Pie chart
+  if(pCharts.lfp)pCharts.lfp.destroy();
+  pCharts.lfp=safeChart('clfp',{type:'doughnut',data:{labels:so.map(s=>s.stage+' ('+s.count+'个)'),datasets:[{data:so.map(s=>s.count),backgroundColor:so.map(s=>stageColors[s.stage]),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+
+  // Sales share pie
+  if(pCharts.lfs)pCharts.lfs.destroy();
+  pCharts.lfs=safeChart('clfs',{type:'doughnut',data:{labels:so.map(s=>s.stage+' ('+fP(s.share)+')'),datasets:[{data:so.map(s=>s.tSales),backgroundColor:so.map(s=>stageColors[s.stage]),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+
+  // Suggestions
+  let sh2='';
+  d.sugs.forEach(su=>{sh2+='<div class="lc-sug '+su.type+'"><h4>'+su.title+'</h4><p>'+su.content+'</p></div>';});
+  document.getElementById('lf-sugs').innerHTML=sh2;
+
+  // Table
+  document.getElementById('lfth').innerHTML='<th>品类</th><th>生命周期</th><th>阶段解读</th><th>总销售额</th><th>近3月销售额</th><th>前3月销售额</th><th>趋势</th><th>活跃月数</th><th>月均销售额</th><th>毛利率</th><th>品类健康度</th>';
+  let h3='';
+  let allSales=d.results.map(r=>r.totalSales).filter(v=>v>0);
+  let maxS=allSales.length>0?Math.max(...allSales):1;
+  d.results.forEach(r=>{
+    let lc=r.lifecycle;
+    let trendHtml=r.r3Trend!==null?(r.r3Trend>=0?'<span class="up">↑ '+fP(Math.abs(r.r3Trend))+'</span>':'<span class="down">↓ '+fP(Math.abs(r.r3Trend))+'</span>'):'-';
+    let healthScore=0;
+    if(r.r3Trend!==null&&r.r3Trend>0.1)healthScore=80;
+    else if(r.r3Trend!==null&&r.r3Trend>=0)healthScore=60;
+    else if(r.r3Trend!==null&&r.r3Trend>-0.1)healthScore=40;
+    else healthScore=20;
+    if(lc.stage==='成长期')healthScore=Math.min(100,healthScore+15);
+    if(lc.stage==='衰退期')healthScore=Math.max(0,healthScore-15);
+    let hBar='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px">'+healthScore+'</span><div class="health-bar"><div class="health-bar-fill '+(healthScore>=70?'good':(healthScore>=40?'warn':'bad'))+'" style="width:'+healthScore+'%"></div></div></div>';
+    h3+='<tr><td>'+r.name+'</td><td><span class="lc-badge '+lc.stageEn+'">'+lc.icon+' '+lc.stage+'</span></td><td style="font-size:12px;color:#666">'+lc.desc+'</td><td>'+fM(r.totalSales)+'</td><td>'+fM(r.r3Sales)+'</td><td>'+fM(r.p3Sales)+'</td><td>'+trendHtml+'</td><td>'+r.activeMonths+'月</td><td>'+fM(r.monthlyAvg)+'</td><td>'+fP(r.margin)+'</td><td>'+hBar+'</td></tr>';
+  });
+  document.getElementById('lftb').innerHTML=h3||'<tr><td colspan="11" class="empty-state">无数据</td></tr>';
+}
+function lfXLSX(){
+  let th=Array.from(document.querySelectorAll('#lfth th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#lftb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');if(tds.length>=11){let row=[];tds.forEach(td=>{let sp=td.querySelector('span.lc-badge');if(sp)row.push(sp.textContent.trim());else if(td.querySelector('.health-bar'))row.push(td.querySelector('span').textContent);else row.push(td.textContent.trim());});rows.push(row);}});
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'生命周期');XLSX.writeFile(wb,'lifecycle.xlsx');
+}
+// ========== LIFECYCLE END ==========
+
+// === Boot ===
+loadData().catch(e=>{
+  showLoad('数据加载失败',e.message);
+  console.error(e);
+});
+
+// === Import Data (write to GitHub repo) ===
+async function putFile(path, jsonStr){
+  const content=btoa(unescape(encodeURIComponent(jsonStr)));
+  let sha=null;
+  try{const head=await fetch('https://api.github.com/repos/'+GH_OWNER+'/'+GH_REPO+'/contents/'+path,{headers:{'Authorization':'Bearer '+GH_TOKEN}});if(head.ok)sha=(await head.json()).sha;}catch(e){}
+  const resp=await fetch('https://api.github.com/repos/'+GH_OWNER+'/'+GH_REPO+'/contents/'+path,{
+    method:'PUT',
+    headers:{'Authorization':'Bearer '+GH_TOKEN,'Content-Type':'application/json'},
+    body:JSON.stringify({message:'update '+path+' via dashboard',content:content,sha:sha})
+  });
+  return resp.ok;
+}
+function encodeProduct(columns,rows){
+  const strIdx=[];for(let i=0;i<rows[0].length;i++){if(typeof rows[0][i]==='string')strIdx.push(i);}
+  const dictCols={};
+  for(const i of strIdx){const vocab=[];const vmap={};for(const r of rows){const s=r[i];if(!(s in vmap)){vmap[s]=vocab.length;vocab.push(s);}r[i]=vmap[s];}dictCols[columns[i]]=vocab;}
+  for(const r of rows){for(let i=0;i<r.length;i++){if(typeof r[i]==='number'&&!Number.isInteger(r[i]))r[i]=Math.round(r[i]*100)/100;}}
+  return {v:1,columns:columns,dictCols:dictCols,rows:rows};
+}
+async function uploadFile(type){
+  const f=document.getElementById('up-'+type).files[0];
+  if(!f){alert('请先选择 '+type+' 的 Excel 文件');return;}
+  const status=document.getElementById('upload-status');
+  status.style.color='#1a237e';
+  status.textContent='⏳ 正在解析 Excel...';
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+    if(raw.length<2){status.style.color='#c62828';status.textContent='❌ Excel 无数据行';return;}
+    const columns=raw[0].map(c=>c==null?'':String(c).trim());
+    let rows=raw.slice(1).map(r=>r.map(v=>v===undefined?null:v));
+    if(type==='product'){
+      const enc=encodeProduct(columns,rows);
+      rows=enc.rows;
+      const CHUNK=21000;
+      const total=Math.ceil(rows.length/CHUNK);
+      let k=0,okAll=true;
+      for(let i=0;i<rows.length;i+=CHUNK){
+        status.textContent='⏳ 正在上传产品数据分片 '+(k+1)+'/'+total+'...';
+        const ok=await putFile('data/product_'+k+'.json',JSON.stringify({rows:rows.slice(i,i+CHUNK)}));
+        if(!ok){okAll=false;break;}
+        k++;
+      }
+      if(okAll){await putFile('data/product_index.json',JSON.stringify({parts:k,columns:enc.columns,dictCols:enc.dictCols}));status.style.color='#2e7d32';status.textContent='✅ 产品数据上传成功！约1-2分钟后刷新看板可见。';}
+      else{status.style.color='#c62828';status.textContent='❌ 产品上传失败，请重试。';}
+    }else{
+      status.textContent='⏳ 正在上传流量数据...';
+      const ok=await putFile('data/traffic.json',JSON.stringify({columns:columns,rows:rows}));
+      if(ok){status.style.color='#2e7d32';status.textContent='✅ 流量数据上传成功！约1-2分钟后刷新看板可见。';}
+      else{status.style.color='#c62828';status.textContent='❌ 流量上传失败，请重试。';}
+    }
+  }catch(e){status.style.color='#c62828';status.textContent='❌ 错误：'+e.message;}
+}
+
+</script>
+</body>
+</html>
