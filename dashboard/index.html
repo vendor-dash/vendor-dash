@@ -1563,9 +1563,9 @@ async function publishDashboard(){
       const ok=await putFile(files[i][1],txt);
       if(!ok){st.style.color='#c62828';st.textContent='❌ 上传失败：'+files[i][0];return;}
     }
-    const url='https://cdn.jsdelivr.net/gh/'+GH_OWNER+'/'+GH_REPO+'@main/dashboard/index.html';
+    const url='https://raw.githack.com/'+GH_OWNER+'/'+GH_REPO+'/main/dashboard/index.html';
     st.style.color='#2e7d32';
-    st.innerHTML=`✅ 发布成功！固定链接（永久不变）：<br><a href='${url}' target='_blank' style='color:#1565c0;word-break:break-all;'>${url}</a><br><span style='color:#888;'>提示：jsDelivr 有数分钟缓存，首次稍等片刻再开。</span>`;
+    st.innerHTML=`✅ 发布成功！固定链接（永久不变）：<br><a href='${url}' target='_blank' style='color:#1565c0;word-break:break-all;'>${url}</a><br><span style='color:#888;'>提示：raw.githack 有缓存，改版后稍等片刻再开；看板数据由 jsDelivr 实时拉取，不受此影响。</span>`;
   }catch(e){st.style.color='#c62828';st.textContent='❌ 错误：'+e.message;}
 }
 function encodeProduct(columns,rows){
