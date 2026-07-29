@@ -1100,6 +1100,7 @@ async function ac(){
   buildColPanel('col-panel-cat',window._catColDefs);
 
   let days=d.period?Math.round((new Date(d.period.end)-new Date(d.period.start))/864e5)+1:1;
+  let h='';
   d.cat_list.forEach(v=>{
     h+='<tr><td>'+v.name+'</td>';
     // ── 销额组：前两月总额 → 前两月日均 → 前两月占比 → 本期占比 → 本期 → 对比期 → 同环比 ──
