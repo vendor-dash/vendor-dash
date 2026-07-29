@@ -785,9 +785,13 @@ function processProductTop30(start,end,shop,cat){
     let bs={};
     for(let r of d){
       let s=r[PI['SPU']];if(!s)continue;
-      if(!bs[s])bs[s]={spu:s,category:r[PI['品类']]||'-',qty:0,sales:0};
-      bs[s].qty+=r[PI['销量']]||0;bs[s].sales+=r[PI['销售额']]||0;
+      let b=baseSPU(s);
+      if(!bs[b])bs[b]={spu:b,category:r[PI['品类']]||'-',qty:0,sales:0,variants:new Set()};
+      bs[b].qty+=r[PI['销量']]||0;bs[b].sales+=r[PI['销售额']]||0;
+      bs[b].variants.add(s);
     }
+    // 把 Set 转成数组方便渲染
+    for(let k in bs) bs[k].variantList=Array.from(bs[k].variants);
     return bs;
   }
   let c_spu=bySpu(curr),m_spu=bySpu(mom),y_spu=bySpu(yoy);
@@ -801,7 +805,8 @@ function processProductTop30(start,end,shop,cat){
       sales:v.sales,sales_share:total_sales>0?v.sales/total_sales:0,
       sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
       qty:v.qty,qty_share:total_qty>0?v.qty/total_qty:0,
-      qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty)
+      qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
+      variantCount:v.variantList?v.variantList.length:1,variantList:v.variantList||[v.spu]
     };
   });
   return{top30:result,total_sales,total_qty};
@@ -1546,7 +1551,8 @@ async function at(){
   document.getElementById('t30th').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
   let h='';
   d.top30.forEach(v=>{
-    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+'</td><td>'+v.category+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
+    let vBadge=v.variantCount>1?' <span class="var-badge" title="'+(v.variantList||[]).join(', ')+'">('+v.variantCount+'变体)</span>':'';
+    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+vBadge+'</td><td>'+v.category+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
     h+='<td>'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
