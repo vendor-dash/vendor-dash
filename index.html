@@ -447,6 +447,16 @@ function _filtTraffic(data,s,e,sh){
     return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]));
   });
 }
+// 提取真SPU：去掉末尾颜色/尺寸后缀（如 CHMJM002-NAVY → CHMJM002）
+// 全局函数，供 processProductSpu / getTopSpuForCat 等多处复用
+function baseSPU(code){
+  if(!code) return '-';
+  let s=String(code).trim();
+  let idx=s.lastIndexOf('-');
+  if(idx>0) return s.substring(0,idx);
+  return s;
+}
+
 function _filtProduct(data,s,e,sh,ca){
   let shops=sh?sh.split(',').map(x=>x.trim()):[];
   return data.filter(r=>{
@@ -714,15 +724,6 @@ function processProductSpu(start,end,shop,cat,search){
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
   let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
-
-  // 提取真SPU：去掉末尾颜色/尺寸后缀（如 CHMJM002-NAVY → CHMJM002）
-  function baseSPU(code){
-    if(!code) return '-';
-    let s=String(code).trim();
-    let idx=s.lastIndexOf('-');
-    if(idx>0) return s.substring(0,idx);
-    return s;
-  }
 
   function bySpu(d){
     let bs={};
@@ -1270,7 +1271,7 @@ async function ac(){
       let rd=r[PI['日期']],spuRaw=r[PI['SPU']];if(!rd||!spuRaw)continue;
       let b=baseSPU(spuRaw);
       if(!spuMap[b])spuMap[b]={curr:0,prev:0,raw:spuRaw};
-      let amt=r[PI['销售额']||'销售额']||0;
+      let si=PI['销售额'];let amt=(si!==undefined&&si!==null)?(r[si]||0):0;
       if(startD&&endD&&rd>=startD&&rd<=endD)spuMap[b].curr+=amt;
       else if(momStart&&momEnd&&rd>=momStart&&rd<=momEnd)spuMap[b].prev+=amt;
     }
