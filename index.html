@@ -1198,18 +1198,36 @@ async function ac(){
   });
   ana+='</table></div>';
 
-  // ③ 环比 ±30% 波动醒目卡片
+  // ③ 环比 ±30% 波动醒目卡片（含增量/减量金额）
   let bigUp=[],bigDown=[];
   d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=0.3)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-0.3)bigDown.push(c);});
+  // 计算总增减量用于汇总
+  let totalUpDelta=0,totalDownDelta=0;
   if(bigUp.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4>🔥 环比增长超 30% 的潜力品类（'+bigUp.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">';
-    bigUp.forEach(c=>{ana+='<div style="background:#fff;border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;min-width:150px;"><div style="font-weight:700;font-size:13px;">'+c.name+'</div><div style="color:#2e7d32;font-weight:700;font-size:15px;margin-top:2px;">▲ +'+fP(c.sales_mom)+'</div><div style="color:#666;font-size:11px;margin-top:2px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利'+fP(c.margin)+'）</div></div>';});
-    ana+='</div><p style="font-size:12px;color:#555;margin:8px 0 0;">这些品类增长势头强劲，建议增加广告预算、扩充 SKU 放大效果。</p></div>';
+    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4>🔥 环比增长超 30% 的潜力品类（'+bigUp.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">';
+    bigUp.forEach(c=>{
+      let delta=c.sales-(c.mom_sales||0);
+      totalUpDelta+=delta;
+      ana+='<div style="background:#fff;border:1px solid #a5d6a7;border-radius:10px;padding:10px 14px;min-width:180px;box-shadow:0 1px 3px rgba(46,125,50,0.12);"><div style="font-weight:700;font-size:14px;color:#1b5e20;">'+c.name+'</div><div style="color:#2e7d32;font-weight:800;font-size:18px;margin-top:4px;">▲ +'+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利'+fP(c.margin)+'）</div><div style="background:#e8f5e9;color:#1b5e20;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">💰 增量贡献 <b>+'+fM(delta)+'</b></div></div>';
+    });
+    ana+='</div><p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 以上 '+bigUp.length+' 个品类合计带来 <b>+'+fM(totalUpDelta)+'</b> 销售额增量，是本期增长的主要引擎。建议加大广告预算、扩充 SKU 放大效果。</p></div>';
   }
   if(bigDown.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4>⚠ 环比下降超 30% 的风险品类（'+bigDown.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">';
-    bigDown.forEach(c=>{let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!==null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');ana+='<div style="background:#fff;border:1px solid #ef9a9a;border-radius:8px;padding:8px 12px;min-width:150px;"><div style="font-weight:700;font-size:13px;">'+c.name+'</div><div style="color:#c62828;font-weight:700;font-size:15px;margin-top:2px;">▼ '+fP(c.sales_mom)+'</div><div style="color:#666;font-size:11px;margin-top:2px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</div><div style="color:#c62828;font-size:11px;margin-top:2px;">'+reason+'</div></div>';});
-    ana+='</div><p style="font-size:12px;color:#555;margin:8px 0 0;">需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p></div>';
+    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4>⚠ 环比下降超 30% 的风险品类（'+bigDown.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">';
+    bigDown.forEach(c=>{
+      let delta=c.sales-(c.mom_sales||0);
+      totalDownDelta+=delta;
+      let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!==null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');
+      ana+='<div style="background:#fff;border:1px solid #ef9a9a;border-radius:10px;padding:10px 14px;min-width:180px;box-shadow:0 1px 3px rgba(198,40,40,0.12);"><div style="font-weight:700;font-size:14px;color:#b71c1c;">'+c.name+'</div><div style="color:#c62828;font-weight:800;font-size:18px;margin-top:4px;">▼ '+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</div><div style="background:#ffebee;color:#b71c1c;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">📉 减量影响 <b>'+fM(delta)+'</b></div><div style="color:#c62828;font-size:11px;margin-top:4px;">⚡ '+reason+'</div></div>';
+    });
+    ana+='</div><p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 以上 '+bigDown.length+' 个品类合计拖累 <b>'+fM(totalDownDelta)+'</b> 销售额。需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p></div>';
+  }
+  // 增减汇总对比（两边都有时显示）
+  if(bigUp.length>0&&bigDown.length>0){
+    let net=totalUpDelta+totalDownDelta;
+    let netColor=net>=0?'#2e7d32':'#c62828';
+    let netIcon=net>=0?'📊':'⚠️';
+    ana+='<div class="ana-block" style="background:linear-gradient(135deg,#f8fff8,#fff8f8);border:1px dashed #aaa;border-radius:10px;padding:10px 14px;"><span style="font-weight:700;font-size:13px;">'+netIcon+' 增减抵消后净影响：<b style="color:'+netColor+';font-size:16px;">'+(net>=0?'+':'')+fM(net)+'</b></span><span style="font-size:12px;color:#666;margin-left:12px;">（起量品类 +'+fM(totalUpDelta)+' vs 掉量品类 '+fM(totalDownDelta)+'）</span></div>';
   }
 
   // Declining cats
