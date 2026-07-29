@@ -1251,16 +1251,28 @@ async function ac(){
   let bigUp=[],bigDown=[];
   d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=0.3)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-0.3)bigDown.push(c);});
   // 辅助：获取某品类下TOP SPU贡献者（本期-上期销售额差）
+  // 取某品类下TOP贡献/拖累SPU（按基础SPU聚合，与SPU分析页一致）
   function getTopSpuForCat(catName,isUp){
     if(!PRODUCT||!PRODUCT.rows)return[];
-    let shops=shop?shop.split(',').map(x=>x.trim()):[];
+    let shopFilter=window._lastCatCtx?window._lastCatCtx.shop:(typeof shop!=='undefined'?shop:'');
+    let shops=shopFilter?String(shopFilter).split(',').map(x=>x.trim()):[];
+    let startD=window._lastCatCtx?window._lastCatCtx.s:(typeof s!=='undefined'?s:'');
+    let endD=window._lastCatCtx?window._lastCatCtx.e:(typeof e!=='undefined'?e:'');
+    // 从ac()上下文取环比周期
+    let ctxData=window._lastCatData;
+    let momStart=ctxData&&ctxData.period?ctxData.period.mom_start:'';
+    let momEnd=ctxData&&ctxData.period?ctxData.period.mom_end:'';
+    
     let spuMap={};
     for(let r of PRODUCT.rows){
-      if(r[PI['品类']]!==catName)continue;
-      if(shops.length&&!shops.includes(r[PI['店铺']]))continue;
-      let rd=r[PI['日期']],spu=r[PI['SPU']];if(!rd||!spu)continue;
-      if(rd>=s&&rd<=e){if(!spuMap[spu])spuMap[spu]={curr:0,prev:0};spuMap[spu].curr+=(r[PI['销售额']]||0);}
-      else if(rd<mom_s&&rd<=mom_e){if(!spuMap[spu])spuMap[spu]={curr:0,prev:0};spuMap[spu].prev+=(r[PI['销售额']]||0);}
+      let rc=r[PI['品类']];if(!rc||String(rc)!==String(catName))continue;
+      if(shops.length&&!shops.includes(String(r[PI['店铺']]||'')))continue;
+      let rd=r[PI['日期']],spuRaw=r[PI['SPU']];if(!rd||!spuRaw)continue;
+      let b=baseSPU(spuRaw);
+      if(!spuMap[b])spuMap[b]={curr:0,prev:0,raw:spuRaw};
+      let amt=r[PI['销售额']||'销售额']||0;
+      if(startD&&endD&&rd>=startD&&rd<=endD)spuMap[b].curr+=amt;
+      else if(momStart&&momEnd&&rd>=momStart&&rd<=momEnd)spuMap[b].prev+=amt;
     }
     return Object.entries(spuMap).map(([k,v])=>({spu:k,delta:v.curr-v.prev,curr:v.curr,prev:v.prev}))
       .filter(x=>x.delta!==0).sort((a,b)=>isUp?b.delta-a.delta:a.delta-b.delta).slice(0,3);
