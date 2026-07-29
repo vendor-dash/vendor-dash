@@ -178,6 +178,13 @@ tr:hover td:first-child{background:#f5f7fa}
 #reportText{width:100%;border:none;resize:none;font-family:'Menlo','Consolas','Microsoft YaHei',monospace;font-size:13px;line-height:1.7;color:#1f2937;padding:16px 20px;box-sizing:border-box;background:#fcfcfd;min-height:48vh}
 .report-close{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px}
 .report-close:hover{background:rgba(255,255,255,.15)}
+/* 部门分层标签 */
+.tier-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+.tier-稳定爆品,.tier-潜力爆品,.tier-稳定热品{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.tier-衰退爆品{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}
+.tier-平销品{background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8}
+.tier-新品,.tier-潜力新品{background:#e3f2fd;color:#0d47a1;border:1px solid #90caf9}
+.tier-SPU淘汰,.tier-SPU下市{background:#ffebee;color:#b71c1c;border:1px solid #ef9a9a}
 </style>
 </head>
 <body>
@@ -323,7 +330,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <script>
 const CP=['#1a237e','#e53935','#43a047','#fb8c00','#8e24aa','#00897b','#d81b60','#5e35b1','#00acc1','#c0ca33','#f4511e','#6d4c41','#3949ab','#7cb342','#039be5'];
 let tCharts={},pCharts={};
-let TRAFFIC=null,PRODUCT=null,TI={},PI={};
+let TRAFFIC=null,PRODUCT=null,TI={},PI={},DEPT_TIER={};
 const GH_OWNER='vendor-dash';
 const GH_REPO='vendor-dash';
 const GH_TOKEN='Ccsq89YsAFXIDFRNWXtlUIY4EQv6n2Xa5O2I4pVNO85lYOQUt7a0LEJSSG9_9bo6edwuyPZ00YR2K7IC11_tap_buhtig'.split('').reverse().join('');
@@ -389,6 +396,8 @@ async function loadData(){
     PRODUCT={columns:pr.columns,dictCols:pr.dictCols,rows:allRows};
     decodeProduct(PRODUCT);
     PI={};PRODUCT.columns.forEach((c,i)=>PI[c]=i);
+    // 加载部门分层
+    try{const dt=await fetch(GH_CDN+'data/dept_tier.json?v='+Date.now()).then(r=>r.ok?r.json():null);DEPT_TIER=(dt&&dt.tiers)?dt.tiers:{};}catch(e){DEPT_TIER={};console.warn('部门分层加载失败',e);}
     setProgress(80);
     showLoad('正在初始化看板...','');
     let info={
@@ -1214,9 +1223,24 @@ async function ac(){
   });
   ana+='</table></div>';
 
-  // ③ 环比 ±30% 波动醒目卡片（含增量/减量金额）
+  // ③ 环比 ±30% 波动醒目卡片（含增量/减量金额 + TOP SPU）
   let bigUp=[],bigDown=[];
   d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=0.3)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-0.3)bigDown.push(c);});
+  // 辅助：获取某品类下TOP SPU贡献者（本期-上期销售额差）
+  function getTopSpuForCat(catName,isUp){
+    if(!PRODUCT||!PRODUCT.rows)return[];
+    let shops=shop?shop.split(',').map(x=>x.trim()):[];
+    let spuMap={};
+    for(let r of PRODUCT.rows){
+      if(r[PI['品类']]!==catName)continue;
+      if(shops.length&&!shops.includes(r[PI['店铺']]))continue;
+      let rd=r[PI['日期']],spu=r[PI['SPU']];if(!rd||!spu)continue;
+      if(rd>=s&&rd<=e){if(!spuMap[spu])spuMap[spu]={curr:0,prev:0};spuMap[spu].curr+=(r[PI['销售额']]||0);}
+      else if(rd<mom_s&&rd<=mom_e){if(!spuMap[spu])spuMap[spu]={curr:0,prev:0};spuMap[spu].prev+=(r[PI['销售额']]||0);}
+    }
+    return Object.entries(spuMap).map(([k,v])=>({spu:k,delta:v.curr-v.prev,curr:v.curr,prev:v.prev}))
+      .filter(x=>x.delta!==0).sort((a,b)=>isUp?b.delta-a.delta:a.delta-b.delta).slice(0,3);
+  }
   // 计算总增减量用于汇总
   let totalUpDelta=0,totalDownDelta=0;
   if(bigUp.length>0){
@@ -1224,7 +1248,14 @@ async function ac(){
     bigUp.forEach(c=>{
       let delta=c.sales-(c.mom_sales||0);
       totalUpDelta+=delta;
-      ana+='<div style="background:#fff;border:1px solid #a5d6a7;border-radius:10px;padding:10px 14px;min-width:180px;box-shadow:0 1px 3px rgba(46,125,50,0.12);"><div style="font-weight:700;font-size:14px;color:#1b5e20;">'+c.name+'</div><div style="color:#2e7d32;font-weight:800;font-size:18px;margin-top:4px;">▲ +'+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利'+fP(c.margin)+'）</div><div style="background:#e8f5e9;color:#1b5e20;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">💰 增量贡献 <b>+'+fM(delta)+'</b></div></div>';
+      let topSpus=getTopSpuForCat(c.name,true);
+      let spuHtml='';
+      if(topSpus.length>0){
+        spuHtml='<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #a5d6a7;font-size:11px;color:#2e7d32;"><b>🏆 起量TOP SPU：</b>';
+        spuHtml+=topSpus.map(s=>'<span style="display:inline-block;background:#e8f5e9;padding:1px 6px;border-radius:4px;margin:2px 3px 2px 0;">'+s.spu+' <b>+'+fM(s.delta)+'</b></span>').join('');
+        spuHtml+='</div>';
+      }
+      ana+='<div style="background:#fff;border:1px solid #a5d6a7;border-radius:10px;padding:10px 14px;min-width:200px;box-shadow:0 1px 3px rgba(46,125,50,0.12);"><div style="font-weight:700;font-size:14px;color:#1b5e20;">'+c.name+'</div><div style="color:#2e7d32;font-weight:800;font-size:18px;margin-top:4px;">▲ +'+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利'+fP(c.margin)+'）</div><div style="background:#e8f5e9;color:#1b5e20;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">💰 增量贡献 <b>+'+fM(delta)+'</b></div>'+spuHtml+'</div>';
     });
     ana+='</div><p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 以上 '+bigUp.length+' 个品类合计带来 <b>+'+fM(totalUpDelta)+'</b> 销售额增量，是本期增长的主要引擎。建议加大广告预算、扩充 SKU 放大效果。</p></div>';
   }
@@ -1234,7 +1265,14 @@ async function ac(){
       let delta=c.sales-(c.mom_sales||0);
       totalDownDelta+=delta;
       let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!==null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');
-      ana+='<div style="background:#fff;border:1px solid #ef9a9a;border-radius:10px;padding:10px 14px;min-width:180px;box-shadow:0 1px 3px rgba(198,40,40,0.12);"><div style="font-weight:700;font-size:14px;color:#b71c1c;">'+c.name+'</div><div style="color:#c62828;font-weight:800;font-size:18px;margin-top:4px;">▼ '+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</div><div style="background:#ffebee;color:#b71c1c;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">📉 减量影响 <b>'+fM(delta)+'</b></div><div style="color:#c62828;font-size:11px;margin-top:4px;">⚡ '+reason+'</div></div>';
+      let topSpus=getTopSpuForCat(c.name,false);
+      let spuHtml='';
+      if(topSpus.length>0){
+        spuHtml='<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ef9a9a;font-size:11px;color:#c62828;"><b>⚠ 拖累TOP SPU：</b>';
+        spuHtml+=topSpus.map(s=>'<span style="display:inline-block;background:#ffebee;padding:1px 6px;border-radius:4px;margin:2px 3px 2px 0;">'+s.spu+' <b>'+fM(s.delta)+'</b></span>').join('');
+        spuHtml+='</div>';
+      }
+      ana+='<div style="background:#fff;border:1px solid #ef9a9a;border-radius:10px;padding:10px 14px;min-width:200px;box-shadow:0 1px 3px rgba(198,40,40,0.12);"><div style="font-weight:700;font-size:14px;color:#b71c1c;">'+c.name+'</div><div style="color:#c62828;font-weight:800;font-size:18px;margin-top:4px;">▼ '+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</div><div style="background:#ffebee;color:#b71c1c;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">📉 减量影响 <b>'+fM(delta)+'</b></div><div style="color:#c62828;font-size:11px;margin-top:4px;">⚡ '+reason+'</div>'+spuHtml+'</div>';
     });
     ana+='</div><p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 以上 '+bigDown.length+' 个品类合计拖累 <b>'+fM(totalDownDelta)+'</b> 销售额。需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p></div>';
   }
@@ -1390,11 +1428,12 @@ async function as(){
   let s=document.getElementById('sss').value,e=document.getElementById('see').value,shop=getMsValue('ms-sshop'),cat=document.getElementById('scat').value,sch=document.getElementById('ssch').value;
   if(!s||!e){alert('请选择日期');return}
   let d=processProductSpu(s,e,shop,cat,sch);
-  let th=['排名','SPU','品类','店铺','销量','销量同比','销量环比','销量占比','销售额','销售额同比','销售额环比','销售额占比','毛利率'];
+  let th=['排名','SPU','部门分层','品类','店铺','销量','销量同比','销量环比','销量占比','销售额','销售额同比','销售额环比','销售额占比','毛利率'];
   document.getElementById('sth').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
   let h='';
   d.spu_list.forEach(v=>{
-    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+'</td><td>'+v.category+'</td><td>'+v.shop+'</td><td>'+fN(v.qty)+'</td>';
+    let tier=DEPT_TIER[v.spu]||'-';
+    h+='<tr><td>'+v.rank+'</td><td>'+v.spu+'</td><td><span class="tier-tag tier-'+tier.replace(/[^\u4e00-\u9fa5a-zA-Z]/g,'')+'">'+tier+'</span></td><td>'+v.category+'</td><td>'+v.shop+'</td><td>'+fN(v.qty)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.sales)+'</td>';
@@ -1402,7 +1441,7 @@ async function as(){
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.sales_share)+'</td><td>'+fP(v.margin)+'</td></tr>';
   });
-  document.getElementById('stb').innerHTML=h||'<tr><td colspan="13" class="empty-state">无数据</td></tr>';
+  document.getElementById('stb').innerHTML=h||'<tr><td colspan="14" class="empty-state">无数据</td></tr>';
   let top5=d.spu_list.slice(0,5);
   let ana='';
   if(d.period){let pd=d.period;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
