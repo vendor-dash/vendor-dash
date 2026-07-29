@@ -219,10 +219,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="btn btn-p" onclick="ac()">查询</button>
 <button class="ibtn o" onclick="dcXLSX()">Excel</button>
 </div>
-<div class="chart-grid">
-<div class="chart-card"><div class="chart-header"><div class="chart-title">品类销售额对比</div><button class="ibtn b" onclick="dc('ccs')">图片</button></div><div class="chart-body"><canvas id="ccs"></canvas></div></div>
-<div class="chart-card"><div class="chart-header"><div class="chart-title">品类销量对比</div><button class="ibtn b" onclick="dc('ccq')">图片</button></div><div class="chart-body"><canvas id="ccq"></canvas></div></div>
-</div>
+
 <div class="table-card"><div class="table-header"><div class="table-title" id="ctitle">品类销售汇总（含前两月对比）</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dcXLSX()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-cat"></div></div></div><div class="table-wrap" id="cat-table-wrap"><table id="cat-table"><thead><tr id="cth"></tr></thead><tbody id="ctb"></tbody></table></div></div>
 <div class="analysis-box"><h3>品类销售分析</h3><div class="analysis-content" id="cana"><p>请选择条件后点击查询。</p></div></div>
 </div>
@@ -1079,8 +1076,7 @@ async function ac(){
   let ctitle=document.getElementById('ctitle');
   if(ctitle)ctitle.innerHTML='品类销售汇总（含前两月对比）'+(d.estimated?' <span style="color:#f9a825;font-size:12px;">⚠ 预估</span>':'');
   Object.values(pCharts).forEach(c=>safeDestroy(c));pCharts={};
-  pCharts.cs=safeChart('ccs',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销售额',data:d.cats_sales_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
-  pCharts.cq=safeChart('ccq',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销量',data:d.cats_qty_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[(i+5)%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
+
   // ── 列定义(含分组,用于表头渲染+列显隐控制) ──
   window._catColDefs=[];
   function addCol(group,label){window._catColDefs.push({g:group,l:label});return label;}
@@ -1220,10 +1216,31 @@ async function ac(){
   let dc=d.declining_cats||[];
   if(dc.length>0){
     ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 连续下降预警</h4>';
-    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#fce4e4"><th style="padding:6px 8px;text-align:left">品类</th><th style="padding:6px 8px;text-align:center">连续期数</th><th style="padding:6px 8px;text-align:center">累计降幅</th><th style="padding:6px 8px;text-align:left">运营建议</th></tr>';
+    // 表头：品类 | 各期销售额（动态列） | 各期降幅 | 累计降幅 | 建议
+    let maxPeriods=Math.max(...dc.map(c=>(c.sales_trend||[]).length),1);
+    let dHead='<tr style="background:#fce4e4"><th style="padding:6px 8px;text-align:left">品类</th><th style="padding:6px 8px;text-align:center">连续<br>期数</th>';
+    for(let pi=0;pi<maxPeriods;pi++)dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px">第'+(pi+1)+'期<br>销售额</th>';
+    for(let pi=0;pi<maxPeriods-1;pi++)dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px;color:#c62828">第'+(pi+1)+'→'+(pi+2)+'<br>降幅</th>';
+    dHead+='<th style="padding:6px 8px;text-align:center">累计<br>降幅</th><th style="padding:6px 8px;text-align:left">运营建议</th></tr>';
+    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px">'+dHead;
     dc.forEach(c=>{
+      let st=c.sales_trend||[];
+      let pd=c.period_drops||[];
       let advice=c.drop_pct>0.5?'严重下滑，建议评估是否清仓退出':(c.drop_pct>0.3?'建议排查竞争环境，考虑促销拉动':'持续小幅下滑，关注市场变化');
-      ana+='<tr><td style="padding:6px 8px;font-weight:600">'+c.name+'</td><td style="padding:6px 8px;text-align:center;color:#e74c3c;font-weight:700">'+c.streak+'期</td><td style="padding:6px 8px;text-align:center;color:#c62828;font-weight:700">↓'+fP(Math.abs(c.drop_pct))+'</td><td style="padding:6px 8px;font-size:12px;color:#666">'+advice+'</td></tr>';
+      let row='<tr><td style="padding:6px 8px;font-weight:600">'+c.name+'</td><td style="padding:6px 8px;text-align:center;color:#e74c3c;font-weight:700">'+c.streak+'期</td>';
+      // 每期销售额
+      for(let pi=0;pi<maxPeriods;pi++){
+        if(pi<st.length)row+='<td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums">'+fM(st[pi])+'</td>';
+        else row+='<td style="padding:6px 8px"></td>';
+      }
+      // 每期降幅
+      for(let pi=0;pi<maxPeriods-1;pi++){
+        if(pi<pd.length)row+='<td style="padding:6px 8px;text-align:right;color:#c62828;font-weight:600;font-variant-numeric:tabular-nums">↓'+fP(Math.abs(pd[pi]))+'</td>';
+        else row+='<td style="padding:6px 8px"></td>';
+      }
+      row+='<td style="padding:6px 8px;text-align:center;color:#c62828;font-weight:700">↓'+fP(Math.abs(c.drop_pct))+'</td>';
+      row+='<td style="padding:6px 8px;font-size:12px;color:#666">'+advice+'</td></tr>';
+      ana+=row;
     });
     ana+='</table></div>';
   }
