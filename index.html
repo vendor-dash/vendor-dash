@@ -1029,7 +1029,7 @@ function toggleColPanel(btn){
   if(!panel||!panel.classList.contains('col-toggle-panel'))panel=btn.parentElement.querySelector('.col-toggle-panel');
   if(panel)panel.classList.toggle('open');
   // close other panels
-  document.querySelectorAll('.col-toggle-panel.open').forEach(p=>{if(p!==p)p.classList.remove('open')});
+  document.querySelectorAll('.col-toggle-panel.open').forEach(p=>{if(p!==panel)p.classList.remove('open')});
 }
 function buildColPanel(panelId,colDefs){
   let el=document.getElementById(panelId);if(!el)return;
@@ -1075,7 +1075,6 @@ async function ac(){
   Object.values(pCharts).forEach(c=>safeDestroy(c));pCharts={};
   pCharts.cs=safeChart('ccs',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销售额',data:d.cats_sales_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
   pCharts.cq=safeChart('ccq',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销量',data:d.cats_qty_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[(i+5)%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
-  let th=['品类'];
   // ── 列定义(含分组,用于表头渲染+列显隐控制) ──
   window._catColDefs=[];
   function addCol(group,label){window._catColDefs.push({g:group,l:label});return label;}
