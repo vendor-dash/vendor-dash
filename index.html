@@ -58,12 +58,27 @@ body{background:#f0f2f5;color:#333;overflow-x:hidden}
 .table-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;overflow:hidden}
 .table-header{padding:16px 18px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
 .table-title{font-size:15px;font-weight:600}
-.table-wrap{overflow-x:auto;max-height:600px}
+.table-wrap{overflow:auto;max-height:600px;position:relative}
 table{width:100%;border-collapse:collapse;font-size:12px}
-thead{position:sticky;top:0;z-index:5}
-th{background:#1a237e;color:#fff;padding:10px 12px;text-align:left;font-weight:500;white-space:nowrap}
-td{padding:8px 12px;border-bottom:1px solid #f0f0f0;white-space:nowrap}
-tr:hover{background:#f5f7fa}
+thead{position:sticky;top:0;z-index:6}
+th{background:#1a237e;color:#fff;padding:10px 12px;text-align:left;font-weight:500;white-space:nowrap;position:relative}
+td{padding:8px 12px;border-bottom:1px solid #f0f0f0;white-space:nowrap;position:relative}
+tr:hover td{background:#f5f7fa}
+/* 固定第一列(品类) */
+th:first-child,td:first-child{position:sticky;left:0;z-index:5;background:inherit;min-width:160px}
+th:first-child{z-index:7;background:#1a237e}
+td:first-child{background:#fff}
+tr:hover td:first-child{background:#f5f7fa}
+/* 列显隐 */
+.col-hidden{display:none!important}
+.col-toggle-btn{padding:4px 10px;font-size:12px;border:1px solid #ddd;border-radius:5px;cursor:pointer;background:#fff;color:#555;display:inline-flex;align-items:center;gap:4px;transition:.2s}
+.col-toggle-btn:hover{border-color:#42a5f5;color:#1565c0}
+.col-toggle-panel{display:none;position:absolute;top:100%;right:0;background:#fff;border:1px solid #e0e0e0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;padding:10px;min-width:180px;max-height:320px;overflow-y:auto;margin-top:4px}
+.col-toggle-panel.open{display:block}
+.col-toggle-panel label{display:flex;align-items:center;padding:5px 8px;font-size:12px;gap:6px;cursor:pointer;border-radius:4px}
+.col-toggle-panel label:hover{background:#f5f7fa}
+.col-toggle-panel input[type=checkbox]{margin:0}
+.col-toggle-panel .col-group-title{font-size:11px;color:#888;font-weight:700;text-transform:uppercase;padding:8px 8px 4px;border-top:1px solid #eee;margin-top:4px}
 .search-box{padding:7px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;min-width:200px;outline:0}
 .search-box:focus{border-color:#42a5f5}
 .sub-tabs{display:flex;margin-bottom:16px;border-bottom:2px solid #e0e0e0}
@@ -186,7 +201,6 @@ tr:hover{background:#f5f7fa}
 <div class="sub-tab" onclick="ss('top',this)">TOP30 SPU</div>
 <div class="sub-tab" onclick="ss('catana',this)">类目分析</div>
 <div class="sub-tab" onclick="ss('life',this)">生命周期分析</div>
-<div class="sub-tab" onclick="ss('aov',this)">客单价&amp;大单</div>
 </div>
 <!-- CAT -->
 <div class="sub-content active" id="sc-cat">
@@ -202,7 +216,7 @@ tr:hover{background:#f5f7fa}
 <div class="chart-card"><div class="chart-header"><div class="chart-title">品类销售额对比</div><button class="ibtn b" onclick="dc('ccs')">图片</button></div><div class="chart-body"><canvas id="ccs"></canvas></div></div>
 <div class="chart-card"><div class="chart-header"><div class="chart-title">品类销量对比</div><button class="ibtn b" onclick="dc('ccq')">图片</button></div><div class="chart-body"><canvas id="ccq"></canvas></div></div>
 </div>
-<div class="table-card"><div class="table-header"><div class="table-title" id="ctitle">品类销售汇总（含前两月对比）</div><button class="ibtn o" onclick="dcXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="cth"></tr></thead><tbody id="ctb"></tbody></table></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title" id="ctitle">品类销售汇总（含前两月对比）</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dcXLSX()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-cat"></div></div></div><div class="table-wrap" id="cat-table-wrap"><table id="cat-table"><thead><tr id="cth"></tr></thead><tbody id="ctb"></tbody></table></div></div>
 <div class="analysis-box"><h3>品类销售分析</h3><div class="analysis-content" id="cana"><p>请选择条件后点击查询。</p></div></div>
 </div>
 <!-- SPU -->
@@ -260,26 +274,6 @@ tr:hover{background:#f5f7fa}
 </div>
 <div class="lc-suggestions" id="lf-sugs"></div>
 <div class="lc-table-card"><div class="lc-table-header"><div class="lc-table-title">品类生命周期明细</div><button class="ibtn o" onclick="lfXLSX()">Excel</button></div><div class="lc-table-wrap"><table><thead><tr id="lfth"></tr></thead><tbody id="lftb"></tbody></table></div></div>
-</div>
-<!-- AOV / 大单 -->
-<div class="sub-content" id="sc-aov">
-<div class="filter-bar">
-<div class="fg"><label class="fl">开始日期</label><input type="date" id="as" class="fi"></div>
-<div class="fg"><label class="fl">结束日期</label><input type="date" id="ae" class="fi"></div>
-<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-ashop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
-<div class="fg"><label class="fl">大单判定</label><select id="athr" class="fs"><option value="qty">按件数</option><option value="sales">按金额(USD)</option></select></div>
-<div class="fg"><label class="fl">阈值</label><input type="number" id="athv" class="fi" value="5" style="width:80px"></div>
-<button class="btn btn-p" onclick="aaov()">查询</button>
-<button class="ibtn o" onclick="aovXLSX()">Excel</button>
-</div>
-<div class="kpi-grid" id="akpi"></div>
-<div class="chart-grid">
-<div class="chart-card"><div class="chart-header"><div class="chart-title">大单 GMV 占比</div><button class="ibtn b" onclick="dc('adonut')">图片</button></div><div class="chart-body"><canvas id="adonut"></canvas></div></div>
-<div class="chart-card"><div class="chart-header"><div class="chart-title">大单数 / GMV 按店铺</div><button class="ibtn b" onclick="dc('abarshop')">图片</button></div><div class="chart-body"><canvas id="abarshop"></canvas></div></div>
-</div>
-<div class="analysis-box"><h3>客单价 &amp; 大单分析</h3><div class="analysis-content" id="aana"><p>请选择条件后点击查询。首查会自动从云端加载订单级数据（客单价、大单依赖此数据）。</p></div></div>
-<div class="table-card"><div class="table-header"><div class="table-title" id="atitle">大单明细（按阈值筛选）</div><button class="ibtn o" onclick="aovXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="ath"></tr></thead><tbody id="atb"></tbody></table></div></div>
-</div>
 </div>
 
 <div class="page" id="pg-i">
@@ -399,12 +393,11 @@ async function initDashboard(d){
   if(typeof XLSX==='undefined'){console.error('XLSX not loaded');try{await new Promise(r=>setTimeout(r,2000));if(typeof XLSX==='undefined'){showLoad('⚠️ Excel库加载失败，请刷新重试');return;}}catch(e){return;}}
   let td=d.traffic_dates.sort(),pd=d.product_dates.sort();
   if(td.length){document.getElementById('ts').value=td[td.length-1];document.getElementById('te').value=td[td.length-1];}
-  if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas','as'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae','ae'].forEach(id=>document.getElementById(id).value=mx);}
+  if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae'].forEach(id=>document.getElementById(id).value=mx);}
   initMs('ms-tshop',d.traffic_shops);
   initMs('ms-cshop',d.product_shops);
   initMs('ms-sshop',d.product_shops);
   initMs('ms-tshop2',d.product_shops);
-  initMs('ms-ashop',d.product_shops);
   d.product_cats.forEach(s=>{['ccat','scat','tcat','cacat'].forEach(id=>{let o=document.createElement('option');o.value=s;o.text=s;document.getElementById(id).appendChild(o)})});
   try{await atf();}catch(e){
     document.getElementById('tana').innerHTML='<div style="padding:20px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;margin:20px 0;"><h3 style="color:#e53935;margin:0 0 10px 0;">数据加载失败</h3><p style="margin:0;color:#333;">'+e.message+'</p></div>';
@@ -414,75 +407,6 @@ async function initDashboard(d){
   document.getElementById('lfe').value=lfDate;
 }
 
-// ====== 客单价 & 大单 (订单级数据, 懒加载) ======
-let ORDERS=null, ORDERS_LOADED=false, OI={};
-let aDonutChart=null, aBarShopChart=null;
-function kpiCard(label,value,sub,color){
-  return '<div class="kpi-card '+(color||'blue')+'"><div class="kpi-label">'+label+'</div><div class="kpi-value">'+value+'</div>'+(sub?'<div class="kpi-sub">'+sub+'</div>':'')+'</div>';
-}
-async function loadOrders(){
-  if(ORDERS_LOADED) return;
-  const oi=await fetch(GH_CDN+'data/orders_index.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('订单索引加载失败('+r.status+')');return r.json();});
-  let rows=[];
-  for(let k=0;k<oi.parts;k++){
-    const part=await fetch(GH_CDN+'data/orders_'+k+'.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('订单分片'+k+'加载失败('+r.status+')');return r.json();});
-    rows=rows.concat(part.rows);
-  }
-  ORDERS={columns:oi.columns,dictCols:oi.dictCols,rows};
-  decodeProduct(ORDERS);
-  OI={};oi.columns.forEach((c,i)=>OI[c]=i);
-  ORDERS_LOADED=true;
-}
-async function aaov(){
-  try{
-    showLoad('正在加载订单数据(客单价/大单)...','首次加载需拉取订单级数据');
-    await loadOrders();
-    let s=document.getElementById('as').value,e=document.getElementById('ae').value,shop=getMsValue('ms-ashop');
-    let thrType=document.getElementById('athr').value, thrVal=parseFloat(document.getElementById('athv').value)||5;
-    let rows=ORDERS.rows.filter(r=>{let d=r[OI['日期']];return d&&s<=d&&d<=e&&(!shop||shop.split(',').includes(r[OI['店铺']]));});
-    let n=rows.length;
-    let totSales=rows.reduce((a,r)=>a+(r[OI['总销售额']]||0),0);
-    let totQty=rows.reduce((a,r)=>a+(r[OI['总数量']]||0),0);
-    let totProfit=rows.reduce((a,r)=>a+(r[OI['总毛利']]||0),0);
-    let aov=n?totSales/n:0;
-    let big=rows.filter(r=> thrType==='qty'? (r[OI['总数量']]||0)>=thrVal : (r[OI['总销售额']]||0)>=thrVal);
-    let bN=big.length, bSales=big.reduce((a,r)=>a+(r[OI['总销售额']]||0),0), bQty=big.reduce((a,r)=>a+(r[OI['总数量']]||0),0);
-    let bSalesShare=n?bSales/totSales:0, bQtyShare=n?bQty/totQty:0;
-    document.getElementById('akpi').innerHTML=
-      kpiCard('客单价(AOV)', fM(aov), '总销售额÷订单数', 'blue')+
-      kpiCard('订单数', fN(n), s+' ~ '+e, 'teal')+
-      kpiCard('大单数', fN(bN), '阈值: '+(thrType==='qty'?thrVal+'件以上':'$'+thrVal), 'orange')+
-      kpiCard('大单GMV占比', fP(bSalesShare), fM(bSales), 'red')+
-      kpiCard('大单件数占比', fP(bQtyShare), fN(bQty)+'件', 'purple')+
-      kpiCard('整体毛利率', n?fP(totProfit/totSales):'-', fM(totProfit), 'green');
-    let sorted=big.slice().sort((a,b)=>(b[OI['总销售额']]||0)-(a[OI['总销售额']]||0));
-    let top=sorted.slice(0,300);
-    document.getElementById('ath').innerHTML='<th>订单</th><th>日期</th><th>店铺</th><th>订单类型</th><th>代运营</th><th>件数</th><th>销售额</th><th>毛利</th><th>广告费</th>';
-    document.getElementById('atb').innerHTML=top.map(r=>'<tr><td>'+r[OI['订单']]+'</td><td>'+r[OI['日期']]+'</td><td>'+r[OI['店铺']]+'</td><td>'+r[OI['订单类型']]+'</td><td>'+r[OI['代运营']]+'</td><td>'+fN(r[OI['总数量']])+'</td><td>'+fM(r[OI['总销售额']])+'</td><td>'+fM(r[OI['总毛利']])+'</td><td>'+fM(r[OI['广告费']])+'</td></tr>').join('');
-    document.getElementById('atitle').innerHTML='大单明细（按阈值筛选）'+(sorted.length>300?' 显示前300条，共'+sorted.length+'条':'');
-    if(aDonutChart)aDonutChart.destroy();
-    aDonutChart=new Chart(document.getElementById('adonut'),{type:'doughnut',data:{labels:['大单','普通订单'],datasets:[{data:[bSales, totSales-bSales],backgroundColor:['#e53935','#cfd8dc']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
-    let shopMap={};
-    big.forEach(r=>{let sh=r[OI['店铺']];if(!shopMap[sh])shopMap[sh]={n:0,s:0};shopMap[sh].n++;shopMap[sh].s+=r[OI['总销售额']]||0;});
-    let shops=Object.keys(shopMap).sort((a,b)=>shopMap[b].s-shopMap[a].s);
-    if(aBarShopChart)aBarShopChart.destroy();
-    aBarShopChart=new Chart(document.getElementById('abarshop'),{type:'bar',data:{labels:shops,datasets:[{label:'大单数',data:shops.map(x=>shopMap[x].n),backgroundColor:'#42a5f5'},{label:'大单GMV',data:shops.map(x=>Math.round(shopMap[x].s)),backgroundColor:'#ef5350',yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true},y1:{position:'right',beginAtZero:true}},plugins:{legend:{position:'bottom'}}}});
-    let thrTxt=thrType==='qty'?thrVal+'件以上':thrVal+'$以上';
-    let concl='本期共 <b>'+fN(n)+'</b> 笔订单，客单价 <b>'+fM(aov)+'</b>。其中大单(<b>'+thrTxt+'</b>) <b>'+fN(bN)+'</b> 笔，占订单数 <b>'+fP(bN/n)+'</b>，贡献 GMV <b>'+fM(bSales)+'</b>（占比 <b>'+fP(bSalesShare)+'</b>），件数占比 <b>'+fP(bQtyShare)+'</b>。';
-    let tip = bSalesShare>0.3? '大单对业绩拉动明显，建议针对高客单价品类/店铺加大关联销售与组合装。':(bSalesShare<0.1?'大单占比较低、订单较分散，可推组合购/满件优惠提升客单价。':'大单占比适中，保持当前策略即可。');
-    document.getElementById('aana').innerHTML='<p style="font-size:13px;line-height:1.8;">'+concl+'</p><p style="font-size:13px;color:#555;line-height:1.8;margin-top:6px;">'+tip+'</p>';
-    window._aovRows=rows; window._aovBig=big; window._aovThr={type:thrType,val:thrVal};
-  }catch(err){
-    document.getElementById('aana').innerHTML='<div style="padding:16px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;"><p style="color:#e53935;margin:0;">分析失败：'+err.message+'</p></div>';
-    console.error(err);
-  }finally{ hideLoad(); }
-}
-function aovXLSX(){
-  if(!window._aovRows){alert('请先点击查询');return;}
-  let {type,val}=window._aovThr;
-  let rows=window._aovRows.map(r=>({订单:r[OI['订单']],日期:r[OI['日期']],店铺:r[OI['店铺']],订单类型:r[OI['订单类型']],代运营:r[OI['代运营']],件数:r[OI['总数量']],销售额:r[OI['总销售额']],毛利:r[OI['总毛利']],广告费:r[OI['广告费']],是否大单:(type==='qty'?(r[OI['总数量']]||0)>=val:(r[OI['总销售额']]||0)>=val)?'是':'否'}));
-  let ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'客单价大单');XLSX.writeFile(wb,'aov.xlsx');
-}
 
 // ====== DATA PROCESSING (replaces server-side) ======
 
@@ -1099,6 +1023,48 @@ function dtXLSX(){
   let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'流量');XLSX.writeFile(wb,'traffic.xlsx')
 }
 
+// ====== COLUMN VISIBILITY TOGGLE ======
+function toggleColPanel(btn){
+  let panel=btn.nextElementSibling;
+  if(!panel||!panel.classList.contains('col-toggle-panel'))panel=btn.parentElement.querySelector('.col-toggle-panel');
+  if(panel)panel.classList.toggle('open');
+  // close other panels
+  document.querySelectorAll('.col-toggle-panel.open').forEach(p=>{if(p!==p)p.classList.remove('open')});
+}
+function buildColPanel(panelId,colDefs){
+  let el=document.getElementById(panelId);if(!el)return;
+  let groups={};
+  colDefs.forEach((c,i)=>{if(!groups[c.g])groups[c.g]=[];groups[c.g].push({i,...c})});
+  let html='';
+  Object.keys(groups).forEach(g=>{
+    html+='<div class="col-group-title">'+g+'</div>';
+    groups[g].forEach(c=>{
+      html+='<label><input type="checkbox" checked data-col-idx="'+c.i+'" onchange="applyColVisibility(\''+panelId+'\')"> '+c.l+'</label>';
+    });
+  });
+  // add select-all / deselect-all
+  html='<div style="padding-bottom:6px;border-bottom:1px solid #eee;margin-bottom:4px;display:flex;gap:8px;font-size:11px;">'+
+    '<a href="javascript:void(0)" onclick="colToggleAll(\''+panelId+'\','+colDefs.length+',true)" style="color:#2e7d32">全选</a>'+
+    '<a href="javascript:void(0)" onclick="colToggleAll(\''+panelId+'\','+colDefs.length+',false)" style="color:#e53935">全不选</a></div>'+html;
+  el.innerHTML=html;
+}
+function applyColVisibility(panelId){
+  let panel=document.getElementById(panelId);if(!panel)return;
+  let table=panel.closest('.table-card').querySelector('table');if(!table)return;
+  panel.querySelectorAll('input[data-col-idx]').forEach(cb=>{
+    let idx=cb.getAttribute('data-col-idx');
+    let visible=cb.checked;
+    table.querySelectorAll('[data-col="'+idx+'"]').forEach(el=>{
+      el.classList.toggle('col-hidden',!visible);
+    });
+  });
+}
+function colToggleAll(panelId,totalCols,checked){
+  let panel=document.getElementById(panelId);if(!panel)return;
+  panel.querySelectorAll('input[data-col-idx]').forEach(cb=>{cb.checked=checked});
+  applyColVisibility(panelId);
+}
+
 // ====== CATEGORY RENDER ======
 async function ac(){
   let s=document.getElementById('cs').value,e=document.getElementById('ce').value,shop=getMsValue('ms-cshop'),cat=document.getElementById('ccat').value;
@@ -1110,22 +1076,24 @@ async function ac(){
   pCharts.cs=safeChart('ccs',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销售额',data:d.cats_sales_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[i%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
   pCharts.cq=safeChart('ccq',{type:'bar',data:{labels:d.cats_chart,datasets:[{label:'销量',data:d.cats_qty_chart,backgroundColor:d.cats_chart.map((_,i)=>CP[(i+5)%CP.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{maxRotation:45}},y:{beginAtZero:true}}}});
   let th=['品类'];
-  // ── 销额组：前两月总额 → 前两月日均 → 前两月占比 → 本期占比 → 本期 → 对比期 → 同环比 ──
-  d.prev_labels.forEach(l=>{th.push(l+'销售额')});
-  d.prev_labels.forEach(l=>{th.push(l+'日均销售额')});
-  d.prev_labels.forEach(l=>{th.push(l+'销售额占比')});
-  th=th.concat(['销售额占比','本期销售额']);
-  th=th.concat(['同比期销售额','销售额同比','环比期销售额','销售额环比']);
-  // ── 销量组：前两月总额 → 前两月日均 → 前两月占比 → 本期占比 → 本期 → 对比期 → 同环比 ──
-  d.prev_labels.forEach(l=>{th.push(l+'销量')});
-  d.prev_labels.forEach(l=>{th.push(l+'日均销量')});
-  d.prev_labels.forEach(l=>{th.push(l+'销量占比')});
-  th=th.concat(['销量占比','本期销量']);
-  th=th.concat(['同比期销量','销量同比','环比期销量','销量环比']);
-  // ── 毛利组 ──
-  th=th.concat(['本期毛利额','毛利额环比','毛利额同比','本期毛利率']);
-  document.getElementById('cth').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
-  let h='';
+  // ── 列定义(含分组,用于表头渲染+列显隐控制) ──
+  window._catColDefs=[];
+  function addCol(group,label){window._catColDefs.push({g:group,l:label});return label;}
+  let th=[addCol('品类','品类')];
+  d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'销售额'))});
+  d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'日均销售额'))});
+  d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'销售额占比'))});
+  th=th.concat([addCol('销额','销售额占比'),addCol('销额','本期销售额')]);
+  th=th.concat([addCol('销额','同比期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比')]);
+  d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量'))});
+  d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'日均销量'))});
+  d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量占比'))});
+  th=th.concat([addCol('销量','销量占比'),addCol('销量','本期销量')]);
+  th=th.concat([addCol('销量','同比期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比')]);
+  th=th.concat([addCol('毛利','本期毛利额'),addCol('毛利','毛利额环比'),addCol('毛利','毛利额同比'),addCol('毛利','本期毛利率')]);
+  document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  buildColPanel('col-panel-cat',window._catColDefs);
+
   let days=d.period?Math.round((new Date(d.period.end)-new Date(d.period.start))/864e5)+1:1;
   d.cat_list.forEach(v=>{
     h+='<tr><td>'+v.name+'</td>';
