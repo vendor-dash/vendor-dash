@@ -187,6 +187,18 @@ tr:hover td:first-child{background:#f5f7fa}
 .tier-SPU淘汰,.tier-SPU下市{background:#ffebee;color:#b71c1c;border:1px solid #ef9a9a}
 .variant-count{color:#1565c0;font-size:11px;font-weight:400;cursor:help;opacity:.8}
 .variant-count:hover{opacity:1;text-decoration:underline}
+/* 增长/下降品类表格行布局 */
+.vol-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px}
+.vol-table th{background:rgba(0,0,0,.04);padding:7px 10px;text-align:left;font-size:12px;font-weight:600;color:#555;border-bottom:2px solid rgba(0,0,0,.08);white-space:nowrap}
+.vol-table td{padding:7px 10px;border-bottom:1px solid rgba(0,0,0,.05);vertical-align:middle}
+.vol-table tbody tr:hover{background:rgba(0,0,0,.03)}
+.vol-up th{background:rgba(46,125,50,.06);color:#1b5e20;border-color:rgba(46,125,50,.15)}
+.vol-up tbody tr:hover{background:rgba(46,125,50,.04)}
+.vol-down th{background:rgba(198,40,40,.06);color:#b71c1c;border-color:rgba(198,40,40,.15)}
+.vol-down tbody tr:hover{background:rgba(198,40,40,.04)}
+.spu-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;margin:1px 3px 1px 0;white-space:nowrap}
+.spu-up{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
+.spu-down{background:#ffebee;color:#b71c1c;border:1px solid #ef9a9a}
 </style>
 </head>
 <body>
@@ -1286,37 +1298,46 @@ async function ac(){
   // 计算总增减量用于汇总
   let totalUpDelta=0,totalDownDelta=0;
   if(bigUp.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4>🔥 环比增长超 30% 的潜力品类（'+bigUp.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">';
+    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 环比增长超 30% 的潜力品类（'+bigUp.length+' 个）</h4>';
+    ana+='<table class="vol-table vol-up"><thead><tr><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利</th><th>增量贡献</th><th>🏆 起量TOP SPU</th></tr></thead><tbody>';
     bigUp.forEach(c=>{
       let delta=c.sales-(c.mom_sales||0);
       totalUpDelta+=delta;
       let topSpus=getTopSpuForCat(c.name,true);
-      let spuHtml='';
-      if(topSpus.length>0){
-        spuHtml='<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #a5d6a7;font-size:11px;color:#2e7d32;"><b>🏆 起量TOP SPU：</b>';
-        spuHtml+=topSpus.map(s=>'<span style="display:inline-block;background:#e8f5e9;padding:1px 6px;border-radius:4px;margin:2px 3px 2px 0;">'+s.spu+' <b>+'+fM(s.delta)+'</b></span>').join('');
-        spuHtml+='</div>';
-      }
-      ana+='<div style="background:#fff;border:1px solid #a5d6a7;border-radius:10px;padding:10px 14px;min-width:200px;box-shadow:0 1px 3px rgba(46,125,50,0.12);"><div style="font-weight:700;font-size:14px;color:#1b5e20;">'+c.name+'</div><div style="color:#2e7d32;font-weight:800;font-size:18px;margin-top:4px;">▲ +'+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'（毛利'+fP(c.margin)+'）</div><div style="background:#e8f5e9;color:#1b5e20;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">💰 增量贡献 <b>+'+fM(delta)+'</b></div>'+spuHtml+'</div>';
+      let spuTd=topSpus.length>0?topSpus.map(s=>'<span class="spu-pill spu-up">'+s.spu+' <b>+'+fM(s.delta)+'</b></span>').join(''):'-';
+      ana+='<tr>';
+      ana+='<td style="font-weight:700;color:#1b5e20;">'+c.name+'</td>';
+      ana+='<td style="color:#2e7d32;font-weight:800;white-space:nowrap;">▲ +'+fP(c.sales_mom)+'</td>';
+      ana+='<td style="color:#666;font-size:12px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
+      ana+='<td>'+fP(c.margin)+'</td>';
+      ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;">+'+fM(delta)+'</td>';
+      ana+='<td style="min-width:220px;">'+spuTd+'</td>';
+      ana+='</tr>';
     });
-    ana+='</div><p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 以上 '+bigUp.length+' 个品类合计带来 <b>+'+fM(totalUpDelta)+'</b> 销售额增量，是本期增长的主要引擎。建议加大广告预算、扩充 SKU 放大效果。</p></div>';
+    ana+='</tbody></table>';
+    ana+='<p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 以上 '+bigUp.length+' 个品类合计带来 <b>+'+fM(totalUpDelta)+'</b> 销售额增量，是本期增长的主要引擎。建议加大广告预算、扩充 SKU 放大效果。</p></div>';
   }
   if(bigDown.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4>⚠ 环比下降超 30% 的风险品类（'+bigDown.length+' 个）</h4><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">';
+    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 环比下降超 30% 的风险品类（'+bigDown.length+' 个）</h4>';
+    ana+='<table class="vol-table vol-down"><thead><tr><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利</th><th>减量影响</th><th>原因研判</th><th>⚠ 拖累TOP SPU</th></tr></thead><tbody>';
     bigDown.forEach(c=>{
       let delta=c.sales-(c.mom_sales||0);
       totalDownDelta+=delta;
       let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!==null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');
       let topSpus=getTopSpuForCat(c.name,false);
-      let spuHtml='';
-      if(topSpus.length>0){
-        spuHtml='<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #ef9a9a;font-size:11px;color:#c62828;"><b>⚠ 拖累TOP SPU：</b>';
-        spuHtml+=topSpus.map(s=>'<span style="display:inline-block;background:#ffebee;padding:1px 6px;border-radius:4px;margin:2px 3px 2px 0;">'+s.spu+' <b>'+fM(s.delta)+'</b></span>').join('');
-        spuHtml+='</div>';
-      }
-      ana+='<div style="background:#fff;border:1px solid #ef9a9a;border-radius:10px;padding:10px 14px;min-width:200px;box-shadow:0 1px 3px rgba(198,40,40,0.12);"><div style="font-weight:700;font-size:14px;color:#b71c1c;">'+c.name+'</div><div style="color:#c62828;font-weight:800;font-size:18px;margin-top:4px;">▼ '+fP(c.sales_mom)+'</div><div style="color:#666;font-size:12px;margin-top:3px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</div><div style="background:#ffebee;color:#b71c1c;font-weight:700;font-size:13px;padding:3px 8px;border-radius:6px;margin-top:5px;display:inline-block;">📉 减量影响 <b>'+fM(delta)+'</b></div><div style="color:#c62828;font-size:11px;margin-top:4px;">⚡ '+reason+'</div>'+spuHtml+'</div>';
+      let spuTd=topSpus.length>0?topSpus.map(s=>'<span class="spu-pill spu-down">'+s.spu+' <b>'+fM(s.delta)+'</b></span>').join(''):'-';
+      ana+='<tr>';
+      ana+='<td style="font-weight:700;color:#b71c1c;">'+c.name+'</td>';
+      ana+='<td style="color:#c62828;font-weight:800;white-space:nowrap;">▼ '+fP(c.sales_mom)+'</td>';
+      ana+='<td style="color:#666;font-size:12px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
+      ana+='<td>'+fP(c.margin)+'</td>';
+      ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;">'+fM(delta)+'</td>';
+      ana+='<td style="font-size:11px;color:#c62828;">⚡ '+reason+'</td>';
+      ana+='<td style="min-width:220px;">'+spuTd+'</td>';
+      ana+='</tr>';
     });
-    ana+='</div><p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 以上 '+bigDown.length+' 个品类合计拖累 <b>'+fM(totalDownDelta)+'</b> 销售额。需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p></div>';
+    ana+='</tbody></table>';
+    ana+='<p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 以上 '+bigDown.length+' 个品类合计拖累 <b>'+fM(totalDownDelta)+'</b> 销售额。需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p></div>';
   }
   // 增减汇总对比（两边都有时显示）
   if(bigUp.length>0&&bigDown.length>0){
