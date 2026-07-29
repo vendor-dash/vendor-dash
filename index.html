@@ -48,6 +48,8 @@ body{background:#f0f2f5;color:#333;overflow-x:hidden}
 .chart-body{position:relative;height:320px}.chart-body.tall{height:500px}
 .analysis-box{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;border-left:4px solid #1a237e}
 .analysis-box h3{font-size:15px;color:#1a237e;margin-bottom:10px}
+.analysis-head{display:flex;align-items:center;justify-content:space-between}
+.analysis-head h3{margin-bottom:0}
 .analysis-content{font-size:13px;line-height:1.8;color:#555}.analysis-content p{margin-bottom:6px}
 .analysis-content .hl{color:#1a237e;font-weight:600}
 .analysis-content .ana-block{margin-bottom:14px;padding-bottom:10px}
@@ -163,6 +165,19 @@ tr:hover td:first-child{background:#f5f7fa}
 @media(max-width:600px){
   .lc-stats{grid-template-columns:1fr}
 }
+/* ===== 一键汇报弹窗 ===== */
+.report-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(3px)}
+.report-modal.open{display:flex}
+.report-card{background:#fff;border-radius:14px;width:min(820px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.4);overflow:hidden}
+.report-top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;background:linear-gradient(135deg,#1a237e,#3949ab);color:#fff}
+.report-top h3{font-size:16px;margin:0;font-weight:700}
+.report-top .sub{font-size:12px;opacity:.85;margin-top:3px}
+.report-body{padding:0;overflow:auto}
+.report-toolbar{display:flex;gap:8px;padding:10px 20px;background:#f7f8fc;border-bottom:1px solid #eee;flex-wrap:wrap}
+.report-toolbar .ibtn{margin-left:0}
+#reportText{width:100%;border:none;resize:none;font-family:'Menlo','Consolas','Microsoft YaHei',monospace;font-size:13px;line-height:1.7;color:#1f2937;padding:16px 20px;box-sizing:border-box;background:#fcfcfd;min-height:48vh}
+.report-close{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px}
+.report-close:hover{background:rgba(255,255,255,.15)}
 </style>
 </head>
 <body>
@@ -221,7 +236,7 @@ tr:hover td:first-child{background:#f5f7fa}
 </div>
 
 <div class="table-card"><div class="table-header"><div class="table-title" id="ctitle">品类销售汇总（含前两月对比）</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dcXLSX()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-cat"></div></div></div><div class="table-wrap" id="cat-table-wrap"><table id="cat-table"><thead><tr id="cth"></tr></thead><tbody id="ctb"></tbody></table></div></div>
-<div class="analysis-box"><h3>品类销售分析</h3><div class="analysis-content" id="cana"><p>请选择条件后点击查询。</p></div></div>
+<div class="analysis-box"><div class="analysis-head"><h3>品类销售分析</h3><button class="ibtn b" onclick="genReport()">📝 一键汇报</button></div><div class="analysis-content" id="cana"><p>请选择条件后点击查询。</p></div></div>
 </div>
 <!-- SPU -->
 <div class="sub-content" id="sc-spu">
@@ -1073,6 +1088,7 @@ async function ac(){
   let s=document.getElementById('cs').value,e=document.getElementById('ce').value,shop=getMsValue('ms-cshop'),cat=document.getElementById('ccat').value;
   if(!s||!e){alert('请选择日期');return}
   let d=processProductCat(s,e,shop,cat);
+  window._lastCatCtx={s,e,shop,cat};window._lastCatData=d;
   let ctitle=document.getElementById('ctitle');
   if(ctitle)ctitle.innerHTML='品类销售汇总（含前两月对比）'+(d.estimated?' <span style="color:#f9a825;font-size:12px;">⚠ 预估</span>':'');
   Object.values(pCharts).forEach(c=>safeDestroy(c));pCharts={};
@@ -1275,6 +1291,98 @@ function dcXLSX(){
   let rows=[th];
   document.querySelectorAll('#ctb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}return td.textContent});rows.push(row);});
   let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'品类');XLSX.writeFile(wb,'category.xlsx')
+}
+
+// ====== 一键汇报生成 ======
+function genReport(){
+  let d=window._lastCatData,ctx=window._lastCatCtx;
+  if(!d){alert('请先在「品类汇总」页查询后再生成汇报');return;}
+  let sp=n=>(n>=0?'+':'')+fP(n);
+  let arrow=n=>(n>=0?'▲ +':'▼ ')+fP(n);
+  let shopLabel=ctx&&ctx.shop?ctx.shop:'全部店铺';
+  let period=(d.period&&d.period.start?d.period.start:'')+' ~ '+(d.period&&d.period.end?d.period.end:'');
+  let now=new Date();
+  let nowStr=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  let L=[];
+  L.push('# 品类运营汇报');L.push('');
+  L.push('**统计周期**：'+period);
+  L.push('**店铺范围**：'+shopLabel);
+  L.push('**生成时间**：'+nowStr);
+  if(d.estimated)L.push('> ⚠ 本期含预估数据（'+(d.estNote||'')+'），仅供参考。');
+  L.push('');L.push('---');
+  // 一、整体
+  L.push('## 一、整体表现');L.push('');
+  let momCh=ch(d.total_sales,d.mom_sales),yoyCh=ch(d.total_sales,d.yoy_sales),mCh=ch(d.total_margin,d.mom_margin);
+  L.push('本期总销售额 **'+fM(d.total_sales)+'**，环比 '+arrow(momCh)+'（上一周期 '+fM(d.mom_sales)+'），同比 '+arrow(yoyCh)+'（去年同期 '+fM(d.yoy_sales)+'）。');
+  L.push('整体毛利率 '+fP(d.total_margin)+'（环比 '+sp(mCh)+'）。');L.push('');
+  // 二、增长
+  let bigUp=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom>=0.3);
+  let upDelta=0;bigUp.forEach(c=>{upDelta+=c.sales-(c.mom_sales||0);});
+  L.push('## 二、增长亮点（起量品类）');L.push('');
+  if(bigUp.length>0){
+    L.push('本期共 **'+bigUp.length+'** 个品类环比增幅超 30%，合计带来 **+'+fM(upDelta)+'** 销售额增量，是本期增长的主要引擎：');L.push('');
+    bigUp.slice().sort((a,b)=>(b.sales-(b.mom_sales||0))-(a.sales-(a.mom_sales||0))).forEach((c,i)=>{
+      let delta=c.sales-(c.mom_sales||0);
+      L.push((i+1)+'. **'+c.name+'**：环比 '+sp(c.sales_mom)+'，本期 '+fM(c.sales)+'（上期 '+fM(c.mom_sales||0)+'），增量 **+'+fM(delta)+'**，毛利率 '+fP(c.margin)+'。');
+    });
+  }else{L.push('本期无环比增幅超 30% 的爆发式增长品类。');}
+  L.push('');
+  // 三、风险
+  let bigDown=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom<=-0.3);
+  let downDelta=0;bigDown.forEach(c=>{downDelta+=c.sales-(c.mom_sales||0);});
+  L.push('## 三、风险预警（掉量品类）');L.push('');
+  if(bigDown.length>0){
+    L.push('本期共 **'+bigDown.length+'** 个品类环比降幅超 30%，合计拖累 **'+fM(downDelta)+'** 销售额：');L.push('');
+    bigDown.slice().sort((a,b)=>(a.sales-(a.mom_sales||0))-(b.sales-(b.mom_sales||0))).forEach((c,i)=>{
+      let delta=c.sales-(c.mom_sales||0);
+      let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!=null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');
+      L.push((i+1)+'. **'+c.name+'**：环比 '+fP(c.sales_mom)+'，本期 '+fM(c.sales)+'（上期 '+fM(c.mom_sales||0)+'），减量 **'+fM(delta)+'**。');
+      L.push('   - 研判：'+reason);
+    });
+  }else{L.push('本期无环比降幅超 30% 的大幅下滑品类。');}
+  L.push('');
+  // 四、连续下滑
+  let dc2=d.declining_cats||[];
+  L.push('## 四、连续下滑关注');L.push('');
+  if(dc2.length>0){
+    dc2.forEach(c=>{
+      let latest=(c.sales_trend&&c.sales_trend.length)?c.sales_trend[c.sales_trend.length-1]:0;
+      let advice=c.drop_pct>0.5?'严重下滑，建议评估是否清仓退出':(c.drop_pct>0.3?'建议排查竞争环境，考虑促销拉动':'持续小幅下滑，关注市场变化');
+      L.push('- **'+c.name+'**：连续 '+c.streak+' 期下滑，累计降幅 '+fP(c.drop_pct)+'，最新一期销售额 '+fM(latest)+'，建议：'+advice);
+    });
+  }else{L.push('本期无连续下滑品类。');}
+  L.push('');
+  // 五、尾部
+  L.push('## 五、尾部品类关注');L.push('');
+  if(d.cat_list.length>5){
+    let btm=d.cat_list.slice(-3);
+    L.push('销量极低的尾部品类：'+btm.map(c=>c.name+'（'+fM(c.sales)+'，占比 '+fP(c.sales_share)+'）').join('、')+'。建议评估：是否保留？是否合并入其他品类？还是需要专项推广？');
+  }else{L.push('品类数量较少，无显著尾部品类。');}
+  L.push('');
+  // 六、广告占位
+  L.push('## 六、广告与推广（待补充）');L.push('');
+  L.push('> 本部分暂为空。待接入各渠道广告数据（花费、ACOS、曝光/点击/转化）后，将自动填充各平台广告表现与投产比分析。');
+  L.push('');L.push('---');
+  L.push('*本汇报由运营数据看板一键生成，数据口径与看板一致。*');
+  let txt=L.join('\n');
+  document.getElementById('reportText').value=txt;
+  document.getElementById('reportSub').textContent='周期 '+period+' · '+shopLabel;
+  let modal=document.getElementById('reportModal');
+  if(!modal._bound){modal.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});modal._bound=true;}
+  modal.classList.add('open');
+}
+function closeReport(){document.getElementById('reportModal').classList.remove('open');}
+function copyReport(ev){
+  let t=document.getElementById('reportText');t.select();t.setSelectionRange(0,99999);
+  try{document.execCommand('copy');}catch(e){if(navigator.clipboard)navigator.clipboard.writeText(t.value);}
+  let b=ev&&ev.target;if(b){let o=b.textContent;b.textContent='✓ 已复制';setTimeout(()=>b.textContent=o,1500);}
+}
+function exportReport(type){
+  let t=document.getElementById('reportText').value;
+  let ctx=window._lastCatCtx||{};
+  let fname='运营汇报_'+(ctx.s||'')+'_'+(ctx.e||'')+'_'+(ctx.shop||'全部')+'.'+(type==='md'?'md':'txt');
+  let blob=new Blob([t],{type:'text/'+(type==='md'?'markdown':'plain')+';charset=utf-8'});
+  let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();URL.revokeObjectURL(a.href);
 }
 
 // ====== SPU RENDER ======
@@ -1768,5 +1876,26 @@ loadData().catch(e=>{
 });
 
 </script>
+
+<!-- 一键汇报弹窗 -->
+<div class="report-modal" id="reportModal">
+  <div class="report-card">
+    <div class="report-top">
+      <div>
+        <h3>📝 运营汇报一键生成</h3>
+        <div class="sub" id="reportSub">基于当前品类查询条件生成</div>
+      </div>
+      <button class="report-close" onclick="closeReport()">✕ 关闭</button>
+    </div>
+    <div class="report-toolbar">
+      <button class="ibtn b" onclick="copyReport(event)">📋 复制全文</button>
+      <button class="ibtn g" onclick="exportReport('md')">⬇ 导出 Markdown</button>
+      <button class="ibtn o" onclick="exportReport('txt')">⬇ 导出 TXT</button>
+    </div>
+    <div class="report-body">
+      <textarea id="reportText" readonly></textarea>
+    </div>
+  </div>
+</div>
 </body>
 </html>
