@@ -896,7 +896,7 @@ async function atf(){
   if(!s||!e){alert('请选择日期');return}
   let cs='',ce='';
   if(mode==='custom'){cs=document.getElementById('tcs').value;ce=document.getElementById('tce').value}
-  else if(mode!=='none'){let s2=new Date(s),e2=new Date(e);let days2=Math.round((e2-s2)/864e5)+1;let cs2=new Date(s2);cs2.setDate(cs2.getDate()-days2);let ce2=new Date(s2);ce2.setDate(ce2.getDate()-1);if(mode==='yoy'){cs2.setFullYear(cs2.getFullYear()-1);ce2=new Date(e2);ce2.setFullYear(ce2.getFullYear()-1)}cs=cs2.toISOString().slice(0,10);ce=ce2.toISOString().slice(0,10)}
+  else if(mode!=='none'){let s2=new Date(s),e2=new Date(e);let days2=Math.round((e2-s2)/864e5)+1;if(mode==='yoy'){cs=new Date(s2.getFullYear()-1,s2.getMonth(),s2.getDate()).toISOString().slice(0,10);ce=new Date(e2.getFullYear()-1,e2.getMonth(),e2.getDate()).toISOString().slice(0,10)}else{let cs2=new Date(s2);cs2.setDate(cs2.getDate()-days2);let ce2=new Date(s2);ce2.setDate(ce2.getDate()-1);cs=cs2.toISOString().slice(0,10);ce=ce2.toISOString().slice(0,10)}}
   let d=processTrafficAgg(s,e,shop,cs,ce);
   let k=d.kpi,ck=d.comp_kpi;
   let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
