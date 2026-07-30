@@ -642,7 +642,7 @@ function processProductCat(start,end,shop,cat){
       effectiveDays:effDays,
       totalDays:days,
       estRatio:estRatio,
-      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
+      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），公式：( '+start+' ~ '+effEnd+' 实际汇总 ÷ '+effDays+'天 ) × '+days+'天 = 预估（系数 '+fP(estRatio)+'）'
     };
   }
   let c_mom=byCat(mom),c_yoy=byCat(yoy);
@@ -813,7 +813,7 @@ function processProductSpu(start,end,shop,cat,search){
     estInfo:isLastDayIncomplete?{
       type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
       effectiveDays:effDays,totalDays:days,estRatio:estRatio,
-      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
+      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），公式：( '+start+' ~ '+effEnd+' 实际汇总 ÷ '+effDays+'天 ) × '+days+'天 = 预估（系数 '+fP(estRatio)+'）'
     }:null};
 }
 
@@ -879,7 +879,7 @@ function processProductTop30(start,end,shop,cat){
   return{top30:result,total_sales,total_qty,estInfo:isLastDayIncomplete?{
     type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
     effectiveDays:effDays,totalDays:days,estRatio:estRatio,
-    message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
+    message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），公式：( '+start+' ~ '+effEnd+' 实际汇总 ÷ '+effDays+'天 ) × '+days+'天 = 预估（系数 '+fP(estRatio)+'）'
   }:null};
 }
 
@@ -903,7 +903,7 @@ function processProductCatAnalysis(start,end,cat){
   if(isLastDayIncomplete){
     let effDays=Math.round((new Date(effEnd)-new Date(effStart))/864e5)+1;
     let estRatio=days/Math.max(effDays,1);
-    estInfo={isEstimated:true,estNote:'数据最新日期为 \''+maxDataDate+'\'（可能不全），取 '+effStart+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）',estFactor:estRatio,effStart,effEnd,maxDataDate};
+    estInfo={isEstimated:true,estNote:'数据最新日期为 \''+maxDataDate+'\'（可能不全），公式：( '+effStart+' ~ '+effEnd+' 实际汇总 ÷ '+effDays+'天 ) × '+days+'天 = 预估（系数 '+fP(estRatio)+'）',estFactor:estRatio,effStart,effEnd,maxDataDate};
   }
 
   let periods=[];
