@@ -587,11 +587,12 @@ function processProductCat(start,end,shop,cat){
   // ===== 检测数据最新日期，判断是否需要预估 =====
   let maxDataDate='';
   for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
-  let isLastDayIncomplete=(end===maxDataDate);
+  let gapDays=(end>maxDataDate)?Math.round((new Date(end)-new Date(maxDataDate))/864e5):0;
+  let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
   let effStart=start,effEnd=end,estInfo=null;
   if(isLastDayIncomplete){
     function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
-    effEnd=sub1day(end);
+    effEnd=sub1day(maxDataDate);
     if(effEnd<start){effEnd=end;isLastDayIncomplete=false;} // 单日范围无法回退
   }
   let s_d=new Date(start),e_d=new Date(end);
@@ -641,7 +642,7 @@ function processProductCat(start,end,shop,cat){
       effectiveDays:effDays,
       totalDays:days,
       estRatio:estRatio,
-      message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
     };
   }
   let c_mom=byCat(mom),c_yoy=byCat(yoy);
@@ -741,11 +742,12 @@ function processProductSpu(start,end,shop,cat,search){
   // 检测数据最新日期
   let maxDataDate='';
   for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
-  let isLastDayIncomplete=(end===maxDataDate);
+  let gapDays=(end>maxDataDate)?Math.round((new Date(end)-new Date(maxDataDate))/864e5):0;
+  let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
   let effEnd=end;
   if(isLastDayIncomplete){
     let sub1=function(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);};
-    effEnd=sub1(end);
+    effEnd=sub1(maxDataDate);
     if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
   }
   let s_d=new Date(start),e_d=new Date(end);
@@ -811,7 +813,7 @@ function processProductSpu(start,end,shop,cat,search){
     estInfo:isLastDayIncomplete?{
       type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
       effectiveDays:effDays,totalDays:days,estRatio:estRatio,
-      message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+      message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
     }:null};
 }
 
@@ -820,11 +822,12 @@ function processProductTop30(start,end,shop,cat){
   // 检测数据最新日期
   let maxDataDate='';
   for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
-  let isLastDayIncomplete=(end===maxDataDate);
+  let gapDays=(end>maxDataDate)?Math.round((new Date(end)-new Date(maxDataDate))/864e5):0;
+  let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
   let effEnd=end;
   if(isLastDayIncomplete){
     let sub1=function(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);};
-    effEnd=sub1(end);
+    effEnd=sub1(maxDataDate);
     if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
   }
   let s_d=new Date(start),e_d=new Date(end);
@@ -876,7 +879,7 @@ function processProductTop30(start,end,shop,cat){
   return{top30:result,total_sales,total_qty,estInfo:isLastDayIncomplete?{
     type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
     effectiveDays:effDays,totalDays:days,estRatio:estRatio,
-    message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+    message:'📊 数据预估：数据最新日期为 '+maxDataDate+'（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估至 '+end+'（'+days+'天）'
   }:null};
 }
 
@@ -885,6 +888,23 @@ function processProductCatAnalysis(start,end,cat){
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
   function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+
+  // === 预估逻辑：检测数据最新日期 ===
+  let maxDataDate='';
+  for(let r of data){let dt=r[PI['日期']];if(dt&&(!maxDataDate||dt>maxDataDate))maxDataDate=dt;}
+  let gapDays=(end>maxDataDate)?Math.round((new Date(end)-new Date(maxDataDate))/864e5):0;
+  let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
+  let effStart=start,effEnd=end,estInfo=null;
+  if(isLastDayIncomplete){
+    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+    effEnd=sub1day(maxDataDate);
+    if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
+  }
+  if(isLastDayIncomplete){
+    let effDays=Math.round((new Date(effEnd)-new Date(effStart))/864e5)+1;
+    let estRatio=days/Math.max(effDays,1);
+    estInfo={isEstimated:true,estNote:'数据最新日期为 \''+maxDataDate+'\'（可能不全），取 '+effStart+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）',estFactor:estRatio,effStart,effEnd,maxDataDate};
+  }
 
   let periods=[];
   for(let i=0;i<6;i++){
@@ -949,7 +969,7 @@ function processProductCatAnalysis(start,end,cat){
   return{
     period:{start,end,days,mom_start:periods[1]?.start||'',mom_end:periods[1]?.end||'',yoy_start,yoy_end,yoy_sales:yoy_total_sales,yoy_qty:yoy_total_qty},
     periods:period_data.map(p=>({label:p.label,start:p.start,end:p.end,total_sales:p.total_sales,total_qty:p.total_qty,total_profit:p.total_profit})),
-    shop_rows,all_shops,selected_cat:cat||'全部类目',declining_cats
+    shop_rows,all_shops,selected_cat:cat||'全部类目',declining_cats,estInfo
   };
 }
 
@@ -1569,6 +1589,7 @@ async function as(){
   document.getElementById('stb').innerHTML=h||'<tr><td colspan="14" class="empty-state">无数据</td></tr>';
   let top5=d.spu_list.slice(0,5);
   let ana='';
+  if(d.estInfo){ana+='<div class="ana-block est-banner"><h4>⚠ 数据预估说明</h4><p style="font-size:13px;color:#5d4037;line-height:1.7;">'+d.estInfo.message+'。表中销量 / 销售额 / 毛利额均为预估值，并非实际成交，仅供参考。</p></div>';}
   if(d.period){let pd=d.period;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
   ana+='<div class="ana-block"><h4>📦 SPU运营概览</h4><p>共 <span class="hl">'+d.count+'</span> 个活跃SPU，总销售额 '+fM(d.total_sales)+'，总销量 '+fN(d.total_qty)+'，毛利率 '+(d.total_sales>0?fP(d.total_profit/d.total_sales):'-')+'。</p>';
 
@@ -1721,6 +1742,7 @@ async function aca(){
   h+='</tr>';
   document.getElementById('catb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   let ana='';
+  if(d.estInfo&&d.estInfo.isEstimated){ana+='<div class="est-banner">⚠ 数据预估说明：'+d.estInfo.estNote+'</div>';}
   if(d.period){let pd=d.period;let p0t=li>=0?periods[li].total_sales:0;ana+='<div class="ana-block"><h4>⏱ 分析周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比上期：'+pd.mom_start+' ~ '+pd.mom_end;if(pd.yoy_sales!==undefined&&pd.yoy_sales!==null){let yoyCh=pd.yoy_sales>0?(p0t-pd.yoy_sales)/pd.yoy_sales:null;ana+=' | 同比：'+fM(pd.yoy_sales);if(yoyCh!==null)ana+=' <span class="'+(yoyCh>=0?'up':'down')+'">'+(yoyCh>=0?'↑':'↓')+fP(Math.abs(yoyCh))+'</span>';}ana+='</p></div>';}
   p0t=li>=0?periods[li].total_sales:0;p1t=li_1>=0?periods[li_1].total_sales:0;
   tdiff=p0t-p1t;
