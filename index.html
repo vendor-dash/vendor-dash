@@ -199,6 +199,8 @@ tr:hover td:first-child{background:#f5f7fa}
 .spu-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;margin:1px 3px 1px 0;white-space:nowrap}
 .spu-up{background:#e8f5e9;color:#1b5e20;border:1px solid #a5d6a7}
 .spu-down{background:#ffebee;color:#b71c1c;border:1px solid #ef9a9a}
+.est-banner{background:linear-gradient(135deg,#fff8e1,#fff3cd);border-left:4px solid #f9a825;border-radius:8px;padding:12px 16px;margin-bottom:14px}
+.est-banner h4{margin:0 0 6px;font-size:14px;color:#f57f17}
 </style>
 </head>
 <body>
@@ -582,13 +584,28 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
 
 function processProductCat(start,end,shop,cat){
   let data=PRODUCT.rows;
-  let curr=_filtProduct(data,start,end,shop,cat);
+  // ===== 检测数据最新日期，判断是否需要预估 =====
+  let maxDataDate='';
+  for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
+  let isLastDayIncomplete=(end===maxDataDate);
+  let effStart=start,effEnd=end,estInfo=null;
+  if(isLastDayIncomplete){
+    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+    effEnd=sub1day(end);
+    if(effEnd<start){effEnd=end;isLastDayIncomplete=false;} // 单日范围无法回退
+  }
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
+  let effDays=isLastDayIncomplete?Math.round((new Date(effEnd)-s_d)/864e5)+1:days;
+  let estRatio=isLastDayIncomplete?(days/effDays):1;
+
   function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
   function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
+
+  // 用有效日期范围过滤（当前期用 effStart~effEnd，环比/同比保持原逻辑）
+  let curr=_filtProduct(data,isLastDayIncomplete?effStart:start,isLastDayIncomplete?effEnd:end,shop,cat);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
   let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
 
@@ -611,27 +628,21 @@ function processProductCat(start,end,shop,cat){
     }
     return bc;
   }
-  // ===== 结束日期无订单数据 → 按均值预估 =====
-  let hasEndData=curr.some(r=>r[PI['日期']]===end);
-  let useEstimate=!hasEndData;
-  let estNote=null;
-  let c_curr;
-  if(useEstimate){
-    // 取「开始日期 ~ 结束日期前两天」的实际数据算日均
-    let avgEnd=addDays(e_d,-2);
-    if(new Date(avgEnd)<s_d)avgEnd=addDays(e_d,-1);
-    if(new Date(avgEnd)<s_d)avgEnd=start;
-    let avgRows=_filtProduct(data,start,avgEnd,shop,cat);
-    let dateSet=new Set(avgRows.map(r=>r[PI['日期']]));
-    let avgDays=Math.max(dateSet.size,1);
-    let c_avg=byCat(avgRows);
-    c_curr={};
-    for(let c of Object.keys(c_avg)){
-      c_curr[c]={qty:c_avg[c].qty/avgDays*days,sales:c_avg[c].sales/avgDays*days,profit:c_avg[c].profit/avgDays*days};
+  // ===== 预估：有效范围实际值 × 系数 =====
+  let c_curr=byCat(curr);
+  if(isLastDayIncomplete){
+    for(let c of Object.keys(c_curr)){
+      c_curr[c]={qty:c_curr[c].qty*estRatio,sales:c_curr[c].sales*estRatio,profit:c_curr[c].profit*estRatio};
     }
-    estNote='结束日期 '+end+' 暂无订单数据，按 '+start+'~'+avgEnd+' 日均（'+avgDays+'天）× 选择天数（'+days+'天）进行预估';
-  } else {
-    c_curr=byCat(curr);
+    estInfo={
+      type:'last_day_incomplete',
+      maxDataDate:maxDataDate,
+      effectiveEnd:effEnd,
+      effectiveDays:effDays,
+      totalDays:days,
+      estRatio:estRatio,
+      message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+    };
   }
   let c_mom=byCat(mom),c_yoy=byCat(yoy);
   let prev_data=prev_months.map(pm=>({label:pm.label,cat_data:byCat(_filtProduct(data,pm.start,pm.end,shop,cat))}));
@@ -675,8 +686,8 @@ function processProductCat(start,end,shop,cat){
     if(!cat_date_sales[c])cat_date_sales[c]={};
     cat_date_sales[c][d]=(cat_date_sales[c][d]||0)+(r[PI['销售额']]||0);
   }
-  if(useEstimate){
-    // 把预估日均填充到当前区间缺失日期，使趋势分析口径一致
+  if(isLastDayIncomplete){
+    // 把预估日均填充到当前区间缺失日期（最后一天），使趋势分析口径一致
     for(let c of Object.keys(c_curr)){
       if(!cat_date_sales[c])cat_date_sales[c]={};
       let sdaily=(c_curr[c].sales||0)/days;
@@ -709,7 +720,7 @@ function processProductCat(start,end,shop,cat){
   declining_cats.sort((a,b)=>b.streak-a.streak||a.drop_pct-b.drop_pct);
 
   return{
-    estimated:useEstimate,estNote:estNote,
+    estimated:!!estInfo,estInfo:estInfo,
     cat_list,total_sales,total_qty,total_profit,
     prev_labels:prev_data.map(p=>p.label),
     total_margin:total_sales>0?total_profit/total_sales:0,
@@ -727,15 +738,30 @@ function processProductCat(start,end,shop,cat){
 
 function processProductSpu(start,end,shop,cat,search){
   let data=PRODUCT.rows;
-  let curr=_filtProduct(data,start,end,shop,cat);
+  // 检测数据最新日期
+  let maxDataDate='';
+  for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
+  let isLastDayIncomplete=(end===maxDataDate);
+  let effEnd=end;
+  if(isLastDayIncomplete){
+    let sub1=function(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);};
+    effEnd=sub1(end);
+    if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
+  }
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
+  let effDays=isLastDayIncomplete?Math.round((new Date(effEnd)-s_d)/864e5)+1:days;
+  let estRatio=isLastDayIncomplete?(days/effDays):1;
+
   function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
   function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
   let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
+
+  // 用有效日期范围过滤当前期
+  let curr=_filtProduct(data,start,isLastDayIncomplete?effEnd:end,shop,cat);
 
   function bySpu(d){
     let bs={};
@@ -748,11 +774,14 @@ function processProductSpu(start,end,shop,cat,search){
       bs[b].qty+=r[PI['销量']]||0;bs[b].sales+=r[PI['销售额']]||0;bs[b].profit+=r[PI['毛利额']]||0;
       bs[b].variants.add(s);
     }
-    // 把Set转数组便于后续使用
     for(let k in bs){bs[k].variantList=Array.from(bs[k].variants).sort();}
     return bs;
   }
   let c_spu=bySpu(curr),m_spu=bySpu(mom),y_spu=bySpu(yoy);
+  // 预估：乘以系数
+  if(isLastDayIncomplete){
+    for(let k of Object.keys(c_spu)){c_spu[k].qty*=estRatio;c_spu[k].sales*=estRatio;c_spu[k].profit*=estRatio;}
+  }
   let total_sales=Object.values(c_spu).reduce((s,v)=>s+v.sales,0);
   let total_qty=Object.values(c_spu).reduce((s,v)=>s+v.qty,0);
   let spu_list=Object.values(c_spu).sort((a,b)=>b.sales-a.sales);
@@ -778,20 +807,40 @@ function processProductSpu(start,end,shop,cat,search){
     };
   });
   return{spu_list:result,total_sales,total_qty,total_profit:Object.values(c_spu).reduce((s,v)=>s+v.profit,0),count:result.length,
-    period:{start,end,days,mom_start:mom_s,mom_end:mom_e,yoy_start:yoy_s,yoy_end:yoy_e}};
+    period:{start,end,days,mom_start:mom_s,mom_end:mom_e,yoy_start:yoy_s,yoy_end:yoy_e},
+    estInfo:isLastDayIncomplete?{
+      type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
+      effectiveDays:effDays,totalDays:days,estRatio:estRatio,
+      message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+    }:null};
 }
 
 function processProductTop30(start,end,shop,cat){
   let data=PRODUCT.rows;
-  let curr=_filtProduct(data,start,end,shop,cat);
+  // 检测数据最新日期
+  let maxDataDate='';
+  for(let r of data){let d=r[PI['日期']];if(d&&d>=maxDataDate)maxDataDate=d;}
+  let isLastDayIncomplete=(end===maxDataDate);
+  let effEnd=end;
+  if(isLastDayIncomplete){
+    let sub1=function(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);};
+    effEnd=sub1(end);
+    if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
+  }
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
+  let effDays=isLastDayIncomplete?Math.round((new Date(effEnd)-s_d)/864e5)+1:days;
+  let estRatio=isLastDayIncomplete?(days/effDays):1;
+
   function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
   function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
   let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
+
+  // 用有效日期范围过滤当前期
+  let curr=_filtProduct(data,start,isLastDayIncomplete?effEnd:end,shop,cat);
 
   function bySpu(d){
     let bs={};
@@ -802,11 +851,14 @@ function processProductTop30(start,end,shop,cat){
       bs[b].qty+=r[PI['销量']]||0;bs[b].sales+=r[PI['销售额']]||0;
       bs[b].variants.add(s);
     }
-    // 把 Set 转成数组方便渲染
     for(let k in bs) bs[k].variantList=Array.from(bs[k].variants);
     return bs;
   }
   let c_spu=bySpu(curr),m_spu=bySpu(mom),y_spu=bySpu(yoy);
+  // 预估：乘以系数
+  if(isLastDayIncomplete){
+    for(let k of Object.keys(c_spu)){c_spu[k].qty*=estRatio;c_spu[k].sales*=estRatio;}
+  }
   let total_sales=Object.values(c_spu).reduce((s,v)=>s+v.sales,0);
   let total_qty=Object.values(c_spu).reduce((s,v)=>s+v.qty,0);
   let top30=Object.values(c_spu).sort((a,b)=>b.sales-a.sales).slice(0,30);
@@ -821,7 +873,11 @@ function processProductTop30(start,end,shop,cat){
       variantCount:v.variantList?v.variantList.length:1,variantList:v.variantList||[v.spu]
     };
   });
-  return{top30:result,total_sales,total_qty};
+  return{top30:result,total_sales,total_qty,estInfo:isLastDayIncomplete?{
+    type:'last_day_incomplete',maxDataDate:maxDataDate,effectiveEnd:effEnd,
+    effectiveDays:effDays,totalDays:days,estRatio:estRatio,
+    message:'📊 数据预估：结束日期 '+end+' 为数据最新日期（可能不全），取 '+start+' ~ '+effEnd+' 实际数据（'+effDays+'天）× 系数 '+fP(estRatio)+' 预估完整周期（'+days+'天）'
+  }:null};
 }
 
 function processProductCatAnalysis(start,end,cat){
@@ -1209,8 +1265,8 @@ async function ac(){
   h+='<td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   let ana='';
-  if(d.estimated){
-    ana+='<div class="ana-block" style="background:linear-gradient(135deg,#fff8e1,#fff3cd);border-left:4px solid #f9a825;"><h4>⚠ 数据预估说明</h4><p style="font-size:13px;color:#5d4037;line-height:1.7;">'+d.estNote+'。表中销量 / 销售额 / 毛利额均为按均值的预估填充值，并非实际成交，仅供参考。</p></div>';
+  if(d.estimated&&d.estInfo){
+    ana+='<div class="ana-block est-banner"><h4>⚠ 数据预估说明</h4><p style="font-size:13px;color:#5d4037;line-height:1.7;">'+d.estInfo.message+'。表中销量 / 销售额 / 毛利额均为预估值，并非实际成交，仅供参考。</p></div>';
   }
   if(d.period){let pd=d.period;let dd=Math.round((new Date(pd.end)-new Date(pd.start))/864e5)+1;ana+='<div class="ana-block"><h4>⏱ 对比周期（环比=紧邻的上一期等长区间；同比=去年同期同区间）</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+dd+'天） ｜ <b>环比(上一期)</b>：'+pd.mom_start+' ~ '+pd.mom_end+' ｜ <b>同比(去年同期)</b>：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
   let momCh=d.mom_sales>0?(d.total_sales-d.mom_sales)/d.mom_sales:null;
@@ -1409,7 +1465,7 @@ function genReport(){
   L.push('**统计周期**：'+period);
   L.push('**店铺范围**：'+shopLabel);
   L.push('**生成时间**：'+nowStr);
-  if(d.estimated)L.push('> ⚠ 本期含预估数据（'+(d.estNote||'')+'），仅供参考。');
+  if(d.estimated&&d.estInfo)L.push('> ⚠ 本期含预估数据（'+d.estInfo.message+'），仅供参考。');
   L.push('');L.push('---');
   // 一、整体
   L.push('## 一、整体表现');L.push('');
@@ -1581,6 +1637,16 @@ async function at(){
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td></tr>';
   });
   document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="11" class="empty-state">无数据</td></tr>';
+  // 预估提示
+  let t30Container=document.getElementById('t30tb').parentElement.parentElement;
+  let oldBanner=t30Container.querySelector('.est-banner');if(oldBanner)oldBanner.remove();
+  if(d.estInfo){
+    let banner=document.createElement('div');
+    banner.className='ana-block est-banner';
+    banner.style.cssText='margin-bottom:12px;';
+    banner.innerHTML='<h4>⚠ 数据预估说明</h4><p style="font-size:13px;color:#5d4037;line-height:1.7;">'+d.estInfo.message+'。表中数据为预估值，仅供参考。</p>';
+    t30Container.insertBefore(banner,t30Container.querySelector('.table-card'));
+  }
   if(pCharts.t30)pCharts.t30.destroy();
   pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
 }
