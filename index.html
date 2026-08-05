@@ -404,11 +404,22 @@ async function loadData(){
     showLoad('正在从云端加载产品数据...','分片加载中，请稍候');
     const pr=await fetch(GH_CDN+'data/product_index.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('产品索引加载失败('+r.status+')');return r.json();});
     let allRows=[];
-    for(let k=0;k<pr.parts;k++){
-      setProgress(40+Math.round(40*k/pr.parts));
-      const part=await fetch(GH_CDN+'data/product_'+k+'.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('产品分片'+k+'加载失败('+r.status+')');return r.json();});
-      allRows=allRows.concat(part.rows);
+    // 并发加载产品分片（浏览器同域并发上限约6个）
+    const CONCURRENCY=6;
+    const results=new Array(pr.parts);
+    async function fetchPart(k){
+      const r=await fetch(GH_CDN+'data/product_'+k+'.json?v='+Date.now());
+      if(!r.ok) throw new Error('产品分片'+k+'加载失败('+r.status+')');
+      return r.json();
     }
+    for(let i=0;i<pr.parts;i+=CONCURRENCY){
+      const batch=[];
+      for(let j=0;j<CONCURRENCY && i+j<pr.parts;j++) batch.push(i+j);
+      const parts=await Promise.all(batch.map(k=>fetchPart(k)));
+      parts.forEach((part,idx)=>{ results[i+idx]=part; });
+      setProgress(40+Math.round(55*Math.min(i+CONCURRENCY,pr.parts)/pr.parts));
+    }
+    for(let k=0;k<pr.parts;k++) allRows=allRows.concat(results[k].rows);
     PRODUCT={columns:pr.columns,dictCols:pr.dictCols,rows:allRows};
     decodeProduct(PRODUCT);
     PI={};PRODUCT.columns.forEach((c,i)=>PI[c]=i);
