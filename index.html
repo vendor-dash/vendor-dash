@@ -495,23 +495,25 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
   let sales=dates.map(d=>bd[d].sales);
   let cvr=dates.map(d=>bd[d].cn>0?bd[d].cvr/bd[d].cn:null);
 
-  // Comparison
+  // Comparison：只要有对比日期范围就生成，不依赖流量数据是否存在
   let cd_data={dates:[],sales:[],puv:[],suv:[],cvr:[],qty:[]};
   let ckp=null;
-  if(comp.length){
-    let cd=aggByDate(comp);
-    let cdates=Object.keys(cd).sort();
-    cd_data={
-      dates:cdates,
-      sales:cdates.map(d=>cd[d].sales),
-      puv:cdates.map(d=>cd[d].hasPuv?cd[d].pUV:null),
-      suv:cdates.map(d=>cd[d].hasSuv?cd[d].sUV:null),
-      cvr:cdates.map(d=>cd[d].cn>0?cd[d].cvr/cd[d].cn:null),
-      qty:cdates.map(d=>cd[d].qty)
-    };
+  if(comp_start&&comp_end){
+    if(comp.length){
+      let cd=aggByDate(comp);
+      let cdates=Object.keys(cd).sort();
+      cd_data={
+        dates:cdates,
+        sales:cdates.map(d=>cd[d].sales),
+        puv:cdates.map(d=>cd[d].hasPuv?cd[d].pUV:null),
+        suv:cdates.map(d=>cd[d].hasSuv?cd[d].sUV:null),
+        cvr:cdates.map(d=>cd[d].cn>0?cd[d].cvr/cd[d].cn:null),
+        qty:cdates.map(d=>cd[d].qty)
+      };
+    }
     let cpUV_days=cd_data.puv.filter(v=>v!=null).length;
     let csUV_days=cd_data.suv.filter(v=>v!=null).length;
-    // 订单对比期销售额/销量
+    // 订单对比期销售额/销量：基于 PRODUCT 数据，不依赖流量
     let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,shop,null);
     let p_comp_sales=p_comp.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
     let p_comp_qty=p_comp.reduce((s,r)=>s+(r[PI['销量']]||0),0);
