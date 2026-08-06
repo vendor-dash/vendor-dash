@@ -472,13 +472,24 @@ function _filtProduct(data,s,e,sh,ca){
   });
 }
 
+// 当选择 US-Overstock Vendor 时，订单数据需合并 US-Overstock Seller
+function expandShopForProduct(shop){
+  if(!shop) return shop;
+  let list=shop.split(',').map(x=>x.trim()).filter(Boolean);
+  if(list.includes('US-Overstock Vendor') && !list.includes('US-Overstock Seller')){
+    list.push('US-Overstock Seller');
+  }
+  return list.join(',');
+}
+
 function processTrafficAgg(start,end,shop,comp_start,comp_end){
   let data=TRAFFIC.rows;
   let curr=_filtTraffic(data,start,end,shop);
   let comp=comp_start&&comp_end?_filtTraffic(data,comp_start,comp_end,shop):[];
 
-  // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合
-  let p_curr=_filtProduct(PRODUCT.rows,start,end,shop,null);
+  // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合；Vendor 店铺自动合并 Seller
+  let p_shop=expandShopForProduct(shop);
+  let p_curr=_filtProduct(PRODUCT.rows,start,end,p_shop,null);
   let p_sales=p_curr.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
   let p_qty=p_curr.reduce((s,r)=>s+(r[PI['销量']]||0),0);
 
@@ -521,8 +532,8 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
     }
     let cpUV_days=cd_data.puv.filter(v=>v!=null).length;
     let csUV_days=cd_data.suv.filter(v=>v!=null).length;
-    // 订单对比期销售额/销量：基于 PRODUCT 数据，不依赖流量
-    let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,shop,null);
+    // 订单对比期销售额/销量：基于 PRODUCT 数据，不依赖流量；Vendor 店铺自动合并 Seller
+    let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,p_shop,null);
     let p_comp_sales=p_comp.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
     let p_comp_qty=p_comp.reduce((s,r)=>s+(r[PI['销量']]||0),0);
     ckp={
