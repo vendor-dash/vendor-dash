@@ -73,6 +73,8 @@ td:first-child{background:#fff}
 tr:hover td:first-child{background:#f5f7fa}
 /* 列显隐 */
 .col-hidden{display:none!important}
+.sort-ind{font-size:10px;color:#c5cae9;font-weight:700;margin-left:2px}
+#spu-table th:hover{background:#283593}
 /* SPU表：排名列+SPU列 双冻结 */
 #spu-table th:first-child,#spu-table td:first-child{min-width:48px}
 #spu-table th:nth-child(2),#spu-table td:nth-child(2){position:sticky;left:48px;z-index:5;min-width:150px;background:inherit}
@@ -1492,28 +1494,13 @@ async function as(){
     addCol('销额','销售额占比'),addCol('销额','本期销售额'),addCol('销额','同期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比'),
     addCol('毛利','毛利率')
   ];
-  document.getElementById('sth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  window._spuColFields=['rank','spu','category','shop','qty_share','qty','yoy_qty','qty_yoy','mom_qty','qty_mom','sales_share','sales','yoy_sales','sales_yoy','mom_sales','sales_mom','margin'];
+  document.getElementById('sth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'" onclick="sortSpu('+i+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind" id="spuSort'+i+'"></span></th>').join('');
   buildColPanel('col-panel-spu',window._spuColDefs);
-  let h='';
-  d.spu_list.forEach(v=>{
-    let vcount=v.variantList?v.variantList.length:1;
-    let vlabel=vcount>1?' <span class="variant-count" title="'+v.variantList.join(', ')+'">('+vcount+'变体)</span>':'';
-    h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td>'+v.category+'</td><td>'+v.shop+'</td>';
-    h+='<td>'+fP(v.qty_share)+'</td>';
-    h+='<td>'+fN(v.qty)+'</td>';
-    h+='<td>'+fN(v.yoy_qty)+'</td>';
-    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.mom_qty)+'</td>';
-    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fP(v.sales_share)+'</td>';
-    h+='<td>'+fM(v.sales)+'</td>';
-    h+='<td>'+fM(v.yoy_sales)+'</td>';
-    h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fM(v.mom_sales)+'</td>';
-    h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fP(v.margin)+'</td></tr>';
-  });
-  document.getElementById('stb').innerHTML=h||'<tr><td colspan="17" class="empty-state">无数据</td></tr>';
+  window._spuData=d;
+  window._spuSort={key:null,dir:1};
+  renderSpuBody(d.spu_list);
+  // 表格体由 renderSpuBody() 渲染（支持点击列头排序）
   let top5=d.spu_list.slice(0,5);
   let ana='';
   if(d.period){let pd=d.period;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
@@ -1559,11 +1546,68 @@ async function as(){
   }
   document.getElementById('sana').innerHTML=ana;
 }
+
+// 渲染 SPU 表格体（供列头排序复用）
+function renderSpuBody(list){
+  let h='';
+  list.forEach(v=>{
+    let vcount=v.variantList?v.variantList.length:1;
+    let vlabel=vcount>1?' <span class="variant-count" title="'+v.variantList.join(', ')+'">('+vcount+'变体)</span>':'';
+    h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td>'+v.category+'</td><td>'+v.shop+'</td>';
+    h+='<td>'+fP(v.qty_share)+'</td>';
+    h+='<td>'+fN(v.qty)+'</td>';
+    h+='<td>'+fN(v.yoy_qty)+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fN(v.mom_qty)+'</td>';
+    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.sales_share)+'</td>';
+    h+='<td>'+fM(v.sales)+'</td>';
+    h+='<td>'+fM(v.yoy_sales)+'</td>';
+    h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fM(v.mom_sales)+'</td>';
+    h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
+    h+='<td>'+fP(v.margin)+'</td></tr>';
+  });
+  document.getElementById('stb').innerHTML=h||'<tr><td colspan="17" class="empty-state">无数据</td></tr>';
+}
+
+// SPU 表头点击排序
+function spuCmp(a,b,field){
+  let va=a[field],vb=b[field];
+  if(va==null&&vb==null)return 0;
+  if(va==null)return 1;
+  if(vb==null)return -1;
+  if(typeof va==='number'&&typeof vb==='number')return va-vb;
+  return String(va).localeCompare(String(vb),'zh');
+}
+function sortSpu(idx){
+  if(!window._spuData)return;
+  let field=window._spuColFields[idx];
+  if(!field)return;
+  if(window._spuSort.key===field)window._spuSort.dir*=-1;
+  else{window._spuSort.key=field;window._spuSort.dir=-1;}
+  let list=window._spuData.spu_list.slice().sort((a,b)=>spuCmp(a,b,field)*window._spuSort.dir);
+  renderSpuBody(list);
+  if(typeof applyColVisibility==='function')applyColVisibility('col-panel-spu');
+  for(let i=0;i<window._spuColFields.length;i++){let el=document.getElementById('spuSort'+i);if(el)el.textContent=(i===idx?(window._spuSort.dir<0?' ▼':' ▲'):'');}
+}
 function dsXLSX(){
-  let th=Array.from(document.querySelectorAll('#sth th')).map(t=>t.textContent);
+  // 仅导出当前可见列（与列筛选状态一致）
+  let thEls=Array.from(document.querySelectorAll('#sth th')).filter(t=>!t.classList.contains('col-hidden'));
+  let visIdx=thEls.map(t=>parseInt(t.getAttribute('data-col')));
+  let th=thEls.map(t=>t.textContent.replace(/[▲▼]/g,'').trim());
   let rows=[th];
-  document.querySelectorAll('#stb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}return td.textContent});rows.push(row);});
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SPU');XLSX.writeFile(wb,'spu.xlsx')
+  document.querySelectorAll('#stb tr').forEach(tr=>{
+    let tds=tr.querySelectorAll('td');
+    if(tds.length<17)return; // 跳过"无数据"行
+    let row=visIdx.map(i=>{
+      let td=tds[i];let sp=td.querySelector('span');
+      if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}
+      return td.textContent.trim();
+    });
+    rows.push(row);
+  });
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SPU');XLSX.writeFile(wb,'spu.xlsx');
 }
 
 // ====== TOP30 RENDER ======
