@@ -469,6 +469,11 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
   let curr=_filtTraffic(data,start,end,shop);
   let comp=comp_start&&comp_end?_filtTraffic(data,comp_start,comp_end,shop):[];
 
+  // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合
+  let p_curr=_filtProduct(PRODUCT.rows,start,end,shop,null);
+  let p_sales=p_curr.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
+  let p_qty=p_curr.reduce((s,r)=>s+(r[PI['销量']]||0),0);
+
   // Aggregate by date
   function aggByDate(rows){
     let bd={};
@@ -506,10 +511,13 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
     };
     let cpUV_days=cd_data.puv.filter(v=>v!=null).length;
     let csUV_days=cd_data.suv.filter(v=>v!=null).length;
-    let cts=cd_data.sales.reduce((a,b)=>a+b,0);
+    // 订单对比期销售额/销量
+    let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,shop,null);
+    let p_comp_sales=p_comp.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
+    let p_comp_qty=p_comp.reduce((s,r)=>s+(r[PI['销量']]||0),0);
     ckp={
-      sales:cts,
-      qty:cd_data.qty.reduce((a,b)=>a+b,0),
+      sales:p_comp_sales,
+      qty:p_comp_qty,
       pUV:cpUV_days>0?cd_data.puv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/cpUV_days:0,
       sUV:csUV_days>0?cd_data.suv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/csUV_days:0,
       pUV_days:cpUV_days,sUV_days:csUV_days
@@ -528,7 +536,7 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
 
   let pUV_days=puv.filter(v=>v!=null).length;
   let sUV_days=suv.filter(v=>v!=null).length;
-  let dc=Math.max(dates.length,1);
+  let dc=Math.max(Math.round((new Date(end)-new Date(start))/864e5)+1,1);
   let ts=sales.reduce((a,b)=>a+b,0);
   let tq=dates.reduce((s,d)=>s+bd[d].qty,0);
 
@@ -561,7 +569,7 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
     cdates:cd_data.dates,csales:cd_data.sales,cpuv:cd_data.puv,csuv:cd_data.suv,ccvr:cd_data.cvr,
     sh_names:sh_list.map(x=>x[0]),sh_sales:sh_list.map(x=>x[1].sales),
     pl_names,pl_uv:pl_names.map(p=>bpl[p].uv),
-    kpi:{sales:ts,qty:tq,pUV:pUV_days>0?puv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/pUV_days:0,sUV:sUV_days>0?suv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/sUV_days:0,days:dc,pUV_days,sUV_days},
+    kpi:{sales:p_sales,qty:p_qty,pUV:pUV_days>0?puv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/pUV_days:0,sUV:sUV_days>0?suv.filter(v=>v!=null).reduce((a,b)=>a+b,0)/sUV_days:0,days:dc,pUV_days,sUV_days},
     comp_kpi:ckp,
     detail
   };
