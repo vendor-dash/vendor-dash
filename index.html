@@ -1130,11 +1130,19 @@ function buildColPanel(panelId,colDefs){
 function applyColVisibility(panelId){
   let panel=document.getElementById(panelId);if(!panel)return;
   let table=panel.closest('.table-card').querySelector('table');if(!table)return;
+  let vis={};
   panel.querySelectorAll('input[data-col-idx]').forEach(cb=>{
-    let idx=cb.getAttribute('data-col-idx');
-    let visible=cb.checked;
-    table.querySelectorAll('[data-col="'+idx+'"]').forEach(el=>{
-      el.classList.toggle('col-hidden',!visible);
+    vis[parseInt(cb.getAttribute('data-col-idx'))]=cb.checked;
+  });
+  // 表头（按 data-col）
+  table.querySelectorAll('thead [data-col]').forEach(el=>{
+    let idx=parseInt(el.getAttribute('data-col'));
+    if(vis[idx]!==undefined) el.classList.toggle('col-hidden',!vis[idx]);
+  });
+  // 表体（按列索引，因为 tbody <td> 可能没有 data-col）
+  table.querySelectorAll('tbody tr').forEach(tr=>{
+    Array.from(tr.children).forEach((cell,idx)=>{
+      if(vis[idx]!==undefined) cell.classList.toggle('col-hidden',!vis[idx]);
     });
   });
 }
@@ -1218,6 +1226,7 @@ async function ac(){
   // ── 毛利合计 ──
   h+='<td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
+  applyColVisibility('col-panel-cat');
   let ana='';
   if(d.period){let pd=d.period;let dd=Math.round((new Date(pd.end)-new Date(pd.start))/864e5)+1;ana+='<div class="ana-block"><h4>⏱ 对比周期（环比=紧邻的上一期等长区间；同比=去年同期同区间）</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+dd+'天） ｜ <b>环比(上一期)</b>：'+pd.mom_start+' ~ '+pd.mom_end+' ｜ <b>同比(去年同期)</b>：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
   let momCh=d.mom_sales>0?(d.total_sales-d.mom_sales)/d.mom_sales:null;
