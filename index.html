@@ -73,6 +73,12 @@ td:first-child{background:#fff}
 tr:hover td:first-child{background:#f5f7fa}
 /* 列显隐 */
 .col-hidden{display:none!important}
+/* SPU表：排名列+SPU列 双冻结 */
+#spu-table th:first-child,#spu-table td:first-child{min-width:48px}
+#spu-table th:nth-child(2),#spu-table td:nth-child(2){position:sticky;left:48px;z-index:5;min-width:150px;background:inherit}
+#spu-table thead th:nth-child(2){z-index:7;background:#1a237e}
+#spu-table tbody td:nth-child(2){background:#fff}
+#spu-table tbody tr:hover td:nth-child(2){background:#f5f7fa}
 .col-toggle-btn{padding:7px 14px;font-size:13px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:#fff;color:#555;display:inline-flex;align-items:center;gap:6px;transition:.2s;font-weight:500}
 .col-toggle-btn:hover{border-color:#42a5f5;color:#1565c0}
 .col-toggle-panel{display:none;position:absolute;top:100%;right:0;background:#fff;border:1px solid #e3e8ef;border-radius:14px;box-shadow:0 12px 40px rgba(20,40,80,.18);z-index:300;padding:16px 18px;min-width:380px;max-width:92vw;max-height:78vh;overflow-y:auto;margin-top:8px}
@@ -237,7 +243,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="btn btn-p" onclick="as()">查询</button>
 <button class="ibtn o" onclick="dsXLSX()">Excel</button>
 </div>
-<div class="table-card"><div class="table-header"><div class="table-title">SPU销售明细</div><button class="ibtn o" onclick="dsXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="sth"></tr></thead><tbody id="stb"></tbody></table></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title">SPU销售明细</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dsXLSX()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-spu"></div></div></div><div class="table-wrap" id="spu-table-wrap"><table id="spu-table"><thead><tr id="sth"></tr></thead><tbody id="stb"></tbody></table></div></div>
 <div class="analysis-box"><h3>SPU分析</h3><div class="analysis-content" id="sana"><p>请选择条件后点击查询。</p></div></div>
 </div>
 <!-- TOP30 -->
@@ -739,6 +745,8 @@ function processProductSpu(start,end,shop,cat,search){
     return{
       rank:i+1,spu:v.spu,category:v.category,shop:v.shop,
       qty:v.qty,sales:v.sales,profit:v.profit,
+      mom_qty:mv.qty,mom_sales:mv.sales,
+      yoy_qty:yv.qty,yoy_sales:yv.sales,
       qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
       sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
       qty_share:total_qty>0?v.qty/total_qty:0,
@@ -1475,26 +1483,37 @@ async function as(){
   let s=document.getElementById('sss').value,e=document.getElementById('see').value,shop=getMsValue('ms-sshop'),cat=document.getElementById('scat').value,sch=document.getElementById('ssch').value;
   if(!s||!e){alert('请选择日期');return}
   let d=processProductSpu(s,e,shop,cat,sch);
-  let th=['排名','SPU','部门分层','品类','店铺','销量','销量同比','销量环比','销量占比','销售额','销售额同比','销售额环比','销售额占比','毛利率'];
-  document.getElementById('sth').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
+  // 列定义（用于表头渲染 + 列显隐控制）
+  window._spuColDefs=[];
+  function addCol(group,label){window._spuColDefs.push({g:group,l:label});return label;}
+  let th=[
+    addCol('基础','排名'),addCol('基础','SPU'),addCol('基础','品类'),addCol('基础','店铺'),
+    addCol('销量','销量占比'),addCol('销量','本期销量'),addCol('销量','同期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比'),
+    addCol('销额','销售额占比'),addCol('销额','本期销售额'),addCol('销额','同期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比'),
+    addCol('毛利','毛利率')
+  ];
+  document.getElementById('sth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  buildColPanel('col-panel-spu',window._spuColDefs);
   let h='';
   d.spu_list.forEach(v=>{
-    // 部门分层：先匹配基础SPU，再匹配变体码
-    let tier=DEPT_TIER[v.spu]||'-';
-    if(tier==='-'&&v.variantList){
-      for(let vt of v.variantList){if(DEPT_TIER[vt]){tier=DEPT_TIER[vt];break;}}
-    }
     let vcount=v.variantList?v.variantList.length:1;
     let vlabel=vcount>1?' <span class="variant-count" title="'+v.variantList.join(', ')+'">('+vcount+'变体)</span>':'';
-    h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td><span class="tier-tag tier-'+tier.replace(/[^\u4e00-\u9fa5a-zA-Z]/g,'')+'">'+tier+'</span></td><td>'+v.category+'</td><td>'+v.shop+'</td><td>'+fN(v.qty)+'</td>';
+    h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td>'+v.category+'</td><td>'+v.shop+'</td>';
+    h+='<td>'+fP(v.qty_share)+'</td>';
+    h+='<td>'+fN(v.qty)+'</td>';
+    h+='<td>'+fN(v.yoy_qty)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fN(v.mom_qty)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.sales)+'</td>';
+    h+='<td>'+fP(v.sales_share)+'</td>';
+    h+='<td>'+fM(v.sales)+'</td>';
+    h+='<td>'+fM(v.yoy_sales)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fM(v.mom_sales)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fP(v.sales_share)+'</td><td>'+fP(v.margin)+'</td></tr>';
+    h+='<td>'+fP(v.margin)+'</td></tr>';
   });
-  document.getElementById('stb').innerHTML=h||'<tr><td colspan="14" class="empty-state">无数据</td></tr>';
+  document.getElementById('stb').innerHTML=h||'<tr><td colspan="17" class="empty-state">无数据</td></tr>';
   let top5=d.spu_list.slice(0,5);
   let ana='';
   if(d.period){let pd=d.period;ana+='<div class="ana-block"><h4>⏱ 对比周期</h4><p>本期：'+pd.start+' ~ '+pd.end+'（'+pd.days+'天） | 环比：'+pd.mom_start+' ~ '+pd.mom_end+' | 同比：'+pd.yoy_start+' ~ '+pd.yoy_end+'</p></div>';}
