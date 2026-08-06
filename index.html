@@ -359,18 +359,18 @@ async function loadData(){
   try{
     showLoad('正在从云端加载流量数据...','');
     setProgress(10);
-    const tr=await fetch(GH_CDN+'data/traffic.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('流量数据加载失败('+r.status+')');return r.json();});
+    const tr=await fetch(GH_CDN+'data/traffic.json?v='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('流量数据加载失败('+r.status+')');return r.json();});
     TRAFFIC={columns:tr.columns,rows:tr.rows};
     TI={};TRAFFIC.columns.forEach((c,i)=>TI[c]=i);
     setProgress(40);
     showLoad('正在从云端加载产品数据...','分片加载中，请稍候');
-    const pr=await fetch(GH_CDN+'data/product_index.json?v='+Date.now()).then(r=>{if(!r.ok)throw new Error('产品索引加载失败('+r.status+')');return r.json();});
+    const pr=await fetch(GH_CDN+'data/product_index.json?v='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('产品索引加载失败('+r.status+')');return r.json();});
     let allRows=[];
     // 并发加载产品分片（浏览器同域并发上限约6个）
     const CONCURRENCY=6;
     const results=new Array(pr.parts);
     async function fetchPart(k){
-      const r=await fetch(GH_CDN+'data/product_'+k+'.json?v='+Date.now());
+      const r=await fetch(GH_CDN+'data/product_'+k+'.json?v='+Date.now(),{cache:'no-store'});
       if(!r.ok) throw new Error('产品分片'+k+'加载失败('+r.status+')');
       return r.json();
     }
@@ -386,7 +386,7 @@ async function loadData(){
     decodeProduct(PRODUCT);
     PI={};PRODUCT.columns.forEach((c,i)=>PI[c]=i);
     // 加载部门分层
-    try{const dt=await fetch(GH_CDN+'data/dept_tier.json?v='+Date.now()).then(r=>r.ok?r.json():null);DEPT_TIER=(dt&&dt.tiers)?dt.tiers:{};}catch(e){DEPT_TIER={};console.warn('部门分层加载失败',e);}
+    try{const dt=await fetch(GH_CDN+'data/dept_tier.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():null);DEPT_TIER=(dt&&dt.tiers)?dt.tiers:{};}catch(e){DEPT_TIER={};console.warn('部门分层加载失败',e);}
     setProgress(80);
     showLoad('正在初始化看板...','');
     let info={
