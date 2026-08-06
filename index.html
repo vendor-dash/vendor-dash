@@ -277,7 +277,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="btn btn-p" onclick="alc()">分析</button>
 <button class="ibtn o" onclick="lcXLSX()">Excel</button>
 </div>
-<div class="table-card"><div class="table-header"><div class="table-title" id="lcTitle">产品生命周期对比</div><button class="ibtn o" onclick="lcXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="lcth"></tr></thead><tbody id="lctb"></tbody></table></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title" id="lcTitle">产品生命周期对比</div><button class="ibtn o" onclick="lcXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="lcRangeRow"></tr><tr id="lcth"></tr></thead><tbody id="lctb"></tbody></table></div></div>
 </div>
 
 <div class="page" id="pg-i">
@@ -1734,7 +1734,10 @@ function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
 function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
   document.getElementById('lcTitle').textContent=`产品生命周期对比（${aStart}~${aEnd} vs ${bStart}~${bEnd}）`;
   let aR=`${aStart.slice(5)}~${aEnd.slice(5)}`,bR=`${bStart.slice(5)}~${bEnd.slice(5)}`;
-  document.getElementById('lcth').innerHTML=`<th>生命周期</th><th>A段(${aR}) 销量</th><th>A段(${aR}) 销额</th><th>A段(${aR}) 占比</th><th>A段(${aR}) 日均销量</th><th>A段(${aR}) 日均销额</th><th>B段(${bR}) 销量</th><th>B段(${bR}) 销额</th><th>B段(${bR}) 占比</th><th>B段(${bR}) 日均销量</th><th>B段(${bR}) 日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>`;
+  // 表头分组行显示时间段
+  document.getElementById('lcRangeRow').innerHTML=`<th>生命周期</th><th colspan="5">A段 (${aR})</th><th colspan="5">B段 (${bR})</th><th colspan="3">对比</th>`;
+  // 简洁指标行
+  document.getElementById('lcth').innerHTML='<th>生命周期</th><th>A段销量</th><th>A段销额</th><th>A段占比</th><th>A段日均销量</th><th>A段日均销额</th><th>B段销量</th><th>B段销额</th><th>B段占比</th><th>B段日均销量</th><th>B段日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>';
   let html='';
   rows.forEach(row=>{
     let shareDiff=row.bShare-row.aShare;
@@ -1762,13 +1765,30 @@ async function alc(){
 }
 
 function lcXLSX(){
-  let th=Array.from(document.querySelectorAll('#lcth th')).map(t=>t.textContent);
-  let rows=[th];
+  // 构建两行表头，按 colspan 展开
+  let rangeRow=[],heads=[];
+  document.querySelectorAll('#lcRangeRow th').forEach(th=>{
+    let cs=parseInt(th.getAttribute('colspan')||'1',10);
+    rangeRow.push(th.textContent.trim());
+    for(let i=1;i<cs;i++) rangeRow.push('');
+  });
+  document.querySelectorAll('#lcth th').forEach(th=>{heads.push(th.textContent.trim());});
+  // Excel 合并单元格
+  let merges=[];
+  let col=0;
+  document.querySelectorAll('#lcRangeRow th').forEach(th=>{
+    let cs=parseInt(th.getAttribute('colspan')||'1',10);
+    if(cs>1) merges.push({s:{r:0,c:col},e:{r:0,c:col+cs-1}});
+    col+=cs;
+  });
+  let rows=[rangeRow,heads];
   document.querySelectorAll('#lctb tr').forEach(tr=>{
     let tds=tr.querySelectorAll('td');
     if(tds.length>=14) rows.push(Array.from(tds).map(td=>td.textContent.trim()));
   });
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
+  let ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges']=merges;
+  let wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'生命周期对比');
   XLSX.writeFile(wb,'lifecycle_compare.xlsx');
 }
