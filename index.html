@@ -308,6 +308,18 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="btn btn-p" onclick="alf()">分析</button>
 <button class="ibtn o" onclick="lfXLSX()">Excel</button>
 </div>
+<div style="margin:20px 0 12px;font-size:15px;font-weight:700;color:#1a237e;">产品生命周期对比分析</div>
+<div class="filter-bar">
+<div class="fg"><label class="fl">A段 开始日期</label><input type="date" id="lca-s" class="fi"></div>
+<div class="fg"><label class="fl">A段 结束日期</label><input type="date" id="lca-e" class="fi"></div>
+<div class="fg"><label class="fl">B段 开始日期</label><input type="date" id="lcb-s" class="fi"></div>
+<div class="fg"><label class="fl">B段 结束日期</label><input type="date" id="lcb-e" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-lcshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<button class="btn btn-p" onclick="alc()">分析</button>
+<button class="ibtn o" onclick="lcXLSX()">Excel</button>
+</div>
+<div class="table-card"><div class="table-header"><div class="table-title" id="lcTitle">产品生命周期对比</div><button class="ibtn o" onclick="lcXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="lcth"></tr></thead><tbody id="lctb"></tbody></table></div></div>
+
 <div class="lc-stats" id="lf-stats"></div>
 <div class="chart-grid">
 <div class="chart-card full"><div class="chart-header"><div class="chart-title">品类生命周期分布趋势（12个月销售结构）</div><button class="ibtn b" onclick="dc('clfe')">图片</button></div><div class="chart-body"><canvas id="clfe"></canvas></div></div>
@@ -458,8 +470,23 @@ async function initDashboard(d){
     document.getElementById('tana').innerHTML='<div style="padding:20px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;margin:20px 0;"><h3 style="color:#e53935;margin:0 0 10px 0;">数据加载失败</h3><p style="margin:0;color:#333;">'+e.message+'</p></div>';
   }
   initMs('ms-lfshop',d.product_shops);
+  initMs('ms-lcshop',d.product_shops);
   let lfDate=pd[pd.length-1]||'';
   document.getElementById('lfe').value=lfDate;
+  // 生命周期对比默认日期：A段=上月整月，B段=数据最新月1日~最新日
+  if(pd.length){
+    let mx=pd[pd.length-1];
+    let [y,m]=mx.split('-').map(Number);
+    let bStart=`${y}-${String(m).padStart(2,'0')}-01`;
+    let prevM=m===1?12:m-1,prevY=m===1?y-1:y;
+    let aStart=`${prevY}-${String(prevM).padStart(2,'0')}-01`;
+    let aEnd=`${prevY}-${String(prevM).padStart(2,'0')}-${new Date(prevY,prevM,0).getDate()}`;
+    document.getElementById('lca-s').value=aStart;
+    document.getElementById('lca-e').value=aEnd;
+    document.getElementById('lcb-s').value=bStart;
+    document.getElementById('lcb-e').value=mx;
+    alc().catch(e=>console.error(e));
+  }
 }
 
 
@@ -1919,6 +1946,91 @@ function lfXLSX(){
   let rows=[th];
   document.querySelectorAll('#lftb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');if(tds.length>=11){let row=[];tds.forEach(td=>{let sp=td.querySelector('span.lc-badge');if(sp)row.push(sp.textContent.trim());else if(td.querySelector('.health-bar'))row.push(td.querySelector('span').textContent);else row.push(td.textContent.trim());});rows.push(row);}});
   let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'生命周期');XLSX.writeFile(wb,'lifecycle.xlsx');
+}
+
+// 产品生命周期字段对比分析
+function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
+  let shops=shop?shop.split(',').filter(Boolean):[];
+  function agg(start,end){
+    let groups={},totalQty=0,totalSales=0,days=new Set();
+    for(let r of PRODUCT.rows){
+      let d=r[PI['日期']];
+      if(!d||d<start||d>end) continue;
+      if(shops.length&&!shops.includes(r[PI['店铺']])) continue;
+      let stage=r[PI['生命周期']];
+      if(!stage) continue;
+      if(!groups[stage]) groups[stage]={qty:0,sales:0,days:new Set()};
+      let q=r[PI['销量']]||0,s=r[PI['销售额']]||0;
+      groups[stage].qty+=q; groups[stage].sales+=s; groups[stage].days.add(d);
+      totalQty+=q; totalSales+=s; days.add(d);
+    }
+    return {groups,totalQty,totalSales,dayCount:days.size};
+  }
+  let A=agg(aStart,aEnd), B=agg(bStart,bEnd);
+  let order=['成熟期','翻单期','未翻单期','淘汰期-老','淘汰期-新','下市期'];
+  let rows=[];
+  for(let stage of order){
+    let a=A.groups[stage]||{qty:0,sales:0,days:new Set()};
+    let b=B.groups[stage]||{qty:0,sales:0,days:new Set()};
+    let ad=Math.max(a.days.size,1), bd=Math.max(b.days.size,1);
+    rows.push({
+      stage,
+      aQty:a.qty,aSales:a.sales,aShare:A.totalSales>0?a.sales/A.totalSales:0,
+      aAvgQty:a.qty/ad,aAvgSales:a.sales/ad,
+      bQty:b.qty,bSales:b.sales,bShare:B.totalSales>0?b.sales/B.totalSales:0,
+      bAvgQty:b.qty/bd,bAvgSales:b.sales/bd
+    });
+  }
+  let adT=Math.max(A.dayCount,1), bdT=Math.max(B.dayCount,1);
+  rows.push({
+    stage:'总计',isTotal:true,
+    aQty:A.totalQty,aSales:A.totalSales,aShare:A.totalSales>0?1:0,
+    aAvgQty:A.totalQty/adT,aAvgSales:A.totalSales/adT,
+    bQty:B.totalQty,bSales:B.totalSales,bShare:B.totalSales>0?1:0,
+    bAvgQty:B.totalQty/bdT,bAvgSales:B.totalSales/bdT
+  });
+  return rows;
+}
+
+function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
+  document.getElementById('lcTitle').textContent=`产品生命周期对比（${aStart}~${aEnd} vs ${bStart}~${bEnd}）`;
+  document.getElementById('lcth').innerHTML='<th>生命周期</th><th>A段 销量</th><th>A段 销额</th><th>A段 占比</th><th>A段 日均销量</th><th>A段 日均销额</th><th>B段 销量</th><th>B段 销额</th><th>B段 占比</th><th>B段 日均销量</th><th>B段 日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>';
+  let html='';
+  rows.forEach(row=>{
+    let shareDiff=row.bShare-row.aShare;
+    let qtyMom=row.aAvgQty>0?(row.bAvgQty-row.aAvgQty)/row.aAvgQty:null;
+    let salesMom=row.aAvgSales>0?(row.bAvgSales-row.aAvgSales)/row.aAvgSales:null;
+    let trStyle=row.isTotal?' style="font-weight:700;background:#f5f7fa"':'';
+    html+=`<tr${trStyle}><td>${row.stage}</td>
+      <td>${fN(row.aQty)}</td><td>${fM(row.aSales)}</td><td>${fP(row.aShare)}</td><td>${fN(row.aAvgQty,1)}</td><td>${fM(row.aAvgSales)}</td>
+      <td>${fN(row.bQty)}</td><td>${fM(row.bSales)}</td><td>${fP(row.bShare)}</td><td>${fN(row.bAvgQty,1)}</td><td>${fM(row.bAvgSales)}</td>
+      <td class="${cC(shareDiff)}">${cA(shareDiff)}${fP(Math.abs(shareDiff))}</td>
+      <td class="${cC(qtyMom)}">${cA(qtyMom)}${qtyMom!==null?fP(Math.abs(qtyMom)):'-'}</td>
+      <td class="${cC(salesMom)}">${cA(salesMom)}${salesMom!==null?fP(Math.abs(salesMom)):'-'}</td>
+    </tr>`;
+  });
+  document.getElementById('lctb').innerHTML=html||'<tr><td colspan="14" class="empty-state">无数据</td></tr>';
+}
+
+async function alc(){
+  let aStart=document.getElementById('lca-s').value,aEnd=document.getElementById('lca-e').value;
+  let bStart=document.getElementById('lcb-s').value,bEnd=document.getElementById('lcb-e').value;
+  let shop=getMsValue('ms-lcshop');
+  if(!aStart||!aEnd||!bStart||!bEnd){alert('请选择完整的 A/B 段时间范围');return;}
+  let rows=processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop);
+  renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd);
+}
+
+function lcXLSX(){
+  let th=Array.from(document.querySelectorAll('#lcth th')).map(t=>t.textContent);
+  let rows=[th];
+  document.querySelectorAll('#lctb tr').forEach(tr=>{
+    let tds=tr.querySelectorAll('td');
+    if(tds.length>=14) rows.push(Array.from(tds).map(td=>td.textContent.trim()));
+  });
+  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'生命周期对比');
+  XLSX.writeFile(wb,'lifecycle_compare.xlsx');
 }
 // ========== LIFECYCLE END ==========
 
