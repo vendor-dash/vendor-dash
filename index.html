@@ -1733,7 +1733,8 @@ function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
 
 function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
   document.getElementById('lcTitle').textContent=`产品生命周期对比（${aStart}~${aEnd} vs ${bStart}~${bEnd}）`;
-  document.getElementById('lcth').innerHTML='<th>生命周期</th><th>A段 销量</th><th>A段 销额</th><th>A段 占比</th><th>A段 日均销量</th><th>A段 日均销额</th><th>B段 销量</th><th>B段 销额</th><th>B段 占比</th><th>B段 日均销量</th><th>B段 日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>';
+  let aR=`${aStart.slice(5)}~${aEnd.slice(5)}`,bR=`${bStart.slice(5)}~${bEnd.slice(5)}`;
+  document.getElementById('lcth').innerHTML=`<th>生命周期</th><th>A段(${aR}) 销量</th><th>A段(${aR}) 销额</th><th>A段(${aR}) 占比</th><th>A段(${aR}) 日均销量</th><th>A段(${aR}) 日均销额</th><th>B段(${bR}) 销量</th><th>B段(${bR}) 销额</th><th>B段(${bR}) 占比</th><th>B段(${bR}) 日均销量</th><th>B段(${bR}) 日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>`;
   let html='';
   rows.forEach(row=>{
     let shareDiff=row.bShare-row.aShare;
