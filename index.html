@@ -832,7 +832,7 @@ function processProductTop30(start,end,shop,cat){
       variantCount:v.variantList?v.variantList.length:1,variantList:v.variantList||[v.spu]
     };
   });
-  return{top30:result,total_sales,total_qty};
+  return{top30:result,total_sales,total_qty,mom:{start:mom_s,end:mom_e},yoy:{start:yoy_s,end:yoy_e}};
 }
 
 function processProductCatAnalysis(start,end,cat){
@@ -1822,13 +1822,15 @@ async function at(){
   let s=document.getElementById('tss').value,e=document.getElementById('tee').value,shop=getMsValue('ms-tshop2'),cat=document.getElementById('tcat').value;
   if(!s||!e){alert('请选择日期');return}
   let d=processProductTop30(s,e,shop,cat);
+  let momLab=d.mom?(d.mom.start.substring(5,7)+'.'+d.mom.start.substring(8,10)+'-'+d.mom.end.substring(5,7)+'.'+d.mom.end.substring(8,10)):'上期';
+  let yoyLab=d.yoy?(d.yoy.start.substring(5,7)+'.'+d.yoy.start.substring(8,10)+'-'+d.yoy.end.substring(5,7)+'.'+d.yoy.end.substring(8,10)):'同期';
   // 列定义（用于表头渲染 + 列显隐控制）
   window._top30ColDefs=[];
   function addCol(group,label){window._top30ColDefs.push({g:group,l:label});return label;}
   let th=[
     addCol('基础','排名'),addCol('基础','SPU'),addCol('基础','品类'),
-    addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额','销售额环比金额'),addCol('销额','销售额同比'),
-    addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量','销量环比数量'),addCol('销量','销量同比')
+    addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额',momLab+'<br>销额'),addCol('销额','销售额同比'),addCol('销额',yoyLab+'<br>销额'),
+    addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量',momLab+'<br>销量'),addCol('销量','销量同比'),addCol('销量',yoyLab+'<br>销量')
   ];
   document.getElementById('t30th').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
   buildColPanel('col-panel-top30',window._top30ColDefs);
@@ -1837,14 +1839,16 @@ async function at(){
     let vBadge=v.variantCount>1?' <span class="var-badge" title="'+(v.variantList||[]).join(', ')+'">('+v.variantCount+'变体)</span>':'';
     h+='<tr><td>'+v.rank+'</td><td>'+v.spu+vBadge+'</td><td>'+v.category+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    h+='<td><span class="'+cC(v.sales_mom_amount)+'">'+(v.sales_mom_amount>=0?'+':'')+fM(Math.abs(v.sales_mom_amount))+'</span></td>';
+    h+='<td>'+fM(v.mom_sales||0)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fM(v.yoy_sales||0)+'</td>';
     h+='<td>'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
-    h+='<td><span class="'+cC(v.qty_mom_amount)+'">'+(v.qty_mom_amount>=0?'+':'')+fN(Math.abs(v.qty_mom_amount))+'</span></td>';
-    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td></tr>';
+    h+='<td>'+fN(v.mom_qty||0)+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fN(v.yoy_qty||0)+'</td></tr>';
   });
-  document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="13" class="empty-state">无数据</td></tr>';
+  document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="15" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-top30');
   if(pCharts.t30)pCharts.t30.destroy();
   pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
