@@ -1197,11 +1197,40 @@ function dtCSV(){
   let csv='\ufeff'+th.join(',')+'\n'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
   let b=new Blob([csv],{type:'text/csv'});let a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='traffic.csv';a.click()
 }
+
+// 通用表格导出：跟随列显隐(col-hidden) + 当前筛选后的可见行；heatAttr 可指定色阶单元格属性
+function exportXLSXFromTable(opt){
+  let body=document.getElementById(opt.bodyId);if(!body)return;
+  let table=body.closest('table');if(!table)return;
+  let thEls=Array.from(table.querySelectorAll('thead th'));
+  let visCols=[];
+  thEls.forEach((th,idx)=>{ if(!th.classList.contains('col-hidden')) visCols.push(idx); });
+  let th=visCols.map(i=>thEls[i].textContent.replace(/<br>/g,' ').replace(/[▲▼]/g,'').trim());
+  if(th.length===0)th=thEls.map(t=>t.textContent.replace(/<br>/g,' ').replace(/[▲▼]/g,'').trim());
+  let rows=[th],heatCells=[],dataRow=0;
+  body.querySelectorAll('tr').forEach((tr)=>{
+    let tds=tr.querySelectorAll('td');
+    if(opt.minCells&&tds.length<opt.minCells)return;
+    let row=[];
+    visCols.forEach((ci,pos)=>{
+      let td=tds[ci];
+      if(!td){row.push('');return;}
+      let sp=td.querySelector('span');
+      let val;
+      if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)val=t;else if(cls.indexOf('down')>=0)val='-'+t;else val=t;}
+      else val=td.textContent.trim();
+      row.push(val);
+      if(opt.heatAttr){let heat=td.getAttribute(opt.heatAttr);if(heat)heatCells.push({r:dataRow+1,c:pos,argb:heat});}
+    });
+    rows.push(row);
+    dataRow++;
+  });
+  let ws=XLSX.utils.aoa_to_sheet(rows);
+  if(heatCells.length)heatCells.forEach(h=>{let ref=XLSX.utils.encode_cell({r:h.r,c:h.c});if(ws[ref])ws[ref].s={fill:{patternType:'solid',fgColor:{rgb:h.argb}}};});
+  let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,opt.sheet||'Sheet1');XLSX.writeFile(wb,opt.file);
+}
 function dtXLSX(){
-  let th=Array.from(document.querySelectorAll('#tth th')).map(t=>t.textContent);
-  let rows=[th];
-  document.querySelectorAll('#ttb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');if(tds.length>=9)rows.push(Array.from(tds).map(td=>td.textContent))});
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'流量');XLSX.writeFile(wb,'traffic.xlsx')
+  exportXLSXFromTable({bodyId:'ttb',sheet:'流量',file:'traffic.xlsx',minCells:9});
 }
 
 // ====== COLUMN VISIBILITY TOGGLE ======
@@ -1505,10 +1534,8 @@ async function ac(){
   document.getElementById('cana').innerHTML=ana;
 }
 function dcXLSX(){
-  let th=Array.from(document.querySelectorAll('#cth th')).map(t=>t.textContent);
-  let rows=[th];
-  document.querySelectorAll('#ctb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}return td.textContent});rows.push(row);});
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'品类');XLSX.writeFile(wb,'category.xlsx')
+  // 跟随列显隐(col-hidden) + 当前筛选后的可见行
+  exportXLSXFromTable({bodyId:'ctb',sheet:'品类',file:'category.xlsx'});
 }
 
 // ====== 一键汇报生成 ======
@@ -1715,22 +1742,8 @@ function sortSpu(idx){
   for(let i=0;i<window._spuColFields.length;i++){let el=document.getElementById('spuSort'+i);if(el)el.textContent=(i===idx?(window._spuSort.dir<0?' ▼':' ▲'):'');}
 }
 function dsXLSX(){
-  // 仅导出当前可见列（与列筛选状态一致）
-  let thEls=Array.from(document.querySelectorAll('#sth th')).filter(t=>!t.classList.contains('col-hidden'));
-  let visIdx=thEls.map(t=>parseInt(t.getAttribute('data-col')));
-  let th=thEls.map(t=>t.textContent.replace(/[▲▼]/g,'').trim());
-  let rows=[th];
-  document.querySelectorAll('#stb tr').forEach(tr=>{
-    let tds=tr.querySelectorAll('td');
-    if(tds.length<18)return; // 跳过"无数据"行
-    let row=visIdx.map(i=>{
-      let td=tds[i];let sp=td.querySelector('span');
-      if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}
-      return td.textContent.trim();
-    });
-    rows.push(row);
-  });
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'SPU');XLSX.writeFile(wb,'spu.xlsx');
+  // 跟随列显隐(col-hidden) + 当前筛选/排序后的可见行
+  exportXLSXFromTable({bodyId:'stb',sheet:'SPU',file:'spu.xlsx',minCells:18});
 }
 
 // ====== TOP30 RENDER ======
@@ -1755,10 +1768,8 @@ async function at(){
   pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
 }
 function dtXLSX2(){
-  let th=Array.from(document.querySelectorAll('#t30th th')).map(t=>t.textContent);
-  let rows=[th];
-  document.querySelectorAll('#t30tb tr').forEach(tr=>{let tds=tr.querySelectorAll('td');let row=Array.from(tds).map(td=>{let sp=td.querySelector('span');if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)return t;if(cls.indexOf('down')>=0)return '-'+t;return t;}return td.textContent});rows.push(row);});
-  let ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'TOP30');XLSX.writeFile(wb,'top30.xlsx')
+  // 跟随列显隐(col-hidden) + 当前筛选后的可见行
+  exportXLSXFromTable({bodyId:'t30tb',sheet:'TOP30',file:'top30.xlsx'});
 }
 
 // ====== CAT ANALYSIS RENDER ======
@@ -1875,11 +1886,8 @@ async function aca(){
   document.getElementById('caana').innerHTML=ana;
 }
 function caXLSX(){
-  let th=Array.from(document.querySelectorAll('#cath th')).map(t=>t.textContent.replace(/<br>/g,' '));
-  let rows=[th],heatCells=[];
-  document.querySelectorAll('#catb tr').forEach((tr,ri)=>{let tds=tr.querySelectorAll('td');let row=[];tds.forEach((td,ci)=>{let sp=td.querySelector('span');let val;if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)val=t;else if(cls.indexOf('down')>=0)val='-'+t;else val=t;}else val=td.textContent;row.push(val);let heat=td.getAttribute('data-heat');if(heat)heatCells.push({r:ri+1,c:ci,argb:heat});});rows.push(row);});
-  let ws=XLSX.utils.aoa_to_sheet(rows);heatCells.forEach(h=>{let ref=XLSX.utils.encode_cell({r:h.r,c:h.c});if(ws[ref])ws[ref].s={fill:{patternType:'solid',fgColor:{rgb:h.argb}}};});
-  let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'类目分析');XLSX.writeFile(wb,'cat_analysis.xlsx');
+  // 跟随列显隐(col-hidden) + 当前筛选后的可见行；保留色阶
+  exportXLSXFromTable({bodyId:'catb',sheet:'类目分析',file:'cat_analysis.xlsx',heatAttr:'data-heat'});
 }
 
 // ====== SHOP-CAT ANALYSIS RENDER ======
@@ -1963,11 +1971,8 @@ async function asc(){
   document.getElementById('scana').innerHTML=ana;
 }
 function ascXLSX(){
-  let th=Array.from(document.querySelectorAll('#scath th')).map(t=>t.textContent.replace(/<br>/g,' '));
-  let rows=[th],heatCells=[];
-  document.querySelectorAll('#scatb tr').forEach((tr,ri)=>{let tds=tr.querySelectorAll('td');let row=[];tds.forEach((td,ci)=>{let sp=td.querySelector('span');let val;if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)val=t;else if(cls.indexOf('down')>=0)val='-'+t;else val=t;}else val=td.textContent;row.push(val);let heat=td.getAttribute('data-heat');if(heat)heatCells.push({r:ri+1,c:ci,argb:heat});});rows.push(row);});
-  let ws=XLSX.utils.aoa_to_sheet(rows);heatCells.forEach(hh=>{let ref=XLSX.utils.encode_cell({r:hh.r,c:hh.c});if(ws[ref])ws[ref].s={fill:{patternType:'solid',fgColor:{rgb:hh.argb}}};});
-  let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'店铺类目分析');XLSX.writeFile(wb,'shop_cat_analysis.xlsx');
+  // 跟随列显隐(col-hidden) + 当前筛选后的可见行；保留色阶
+  exportXLSXFromTable({bodyId:'scatb',sheet:'店铺类目分析',file:'shop_cat_analysis.xlsx',heatAttr:'data-heat'});
 }
 
 // ====== LIFECYCLE ANALYSIS ======
