@@ -342,7 +342,7 @@ function hideLoad(){document.getElementById('loading-overlay').classList.add('hi
 function setProgress(pct){document.getElementById('loading-bar').style.width=pct+'%';}
 
 // === Helpers ===
-function fN(n,d=0){if(n==null||isNaN(n))return'-';if(Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(Math.abs(n)>=1e4)return(n/1e4).toFixed(1)+'W';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fN(n,d=0,raw=false){if(n==null||isNaN(n))return'-';if(!raw&&Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(!raw&&Math.abs(n)>=1e4)return(n/1e4).toFixed(1)+'W';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fP(n,d=1){if(n==null||isNaN(n))return'-';return(n*100).toFixed(d)+'%'}
 function fM(n){if(n==null||isNaN(n))return'-';return'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0})}
 function cC(v){return v!=null?(v>=0?'up':'down'):''}
@@ -1019,20 +1019,21 @@ async function atf(){
   let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
   let days=k.days||1;
   let h='';
+  function compSub(cur,prev,fmt){let c=ch(cur,prev);return'<span class="'+cC(c)+'">'+cA(c)+' '+fP(Math.abs(c||0))+' vs '+cl+'</span><br><span style="opacity:.85">'+cl+' '+fmt(prev)+'</span>';}
   h+='<div class="kpi-card blue"><div class="kpi-label">总销售额</div><div class="kpi-value">'+fM(k.sales)+'</div>';
-  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.sales,ck.sales))+'">'+cA(ch(k.sales,ck.sales))+' '+fP(Math.abs(ch(k.sales,ck.sales)||0))+' vs '+cl+'</span></div>';
+  if(ck)h+='<div class="kpi-sub">'+compSub(k.sales,ck.sales,fM)+'</div>';
   h+='</div>';
   h+='<div class="kpi-card green"><div class="kpi-label">总销量</div><div class="kpi-value">'+fN(k.qty)+'</div>';
-  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.qty,ck.qty))+'">'+cA(ch(k.qty,ck.qty))+' '+fP(Math.abs(ch(k.qty,ck.qty)||0))+' vs '+cl+'</span></div>';
+  if(ck)h+='<div class="kpi-sub">'+compSub(k.qty,ck.qty,x=>fN(x))+'</div>';
   h+='</div>';
   h+='<div class="kpi-card teal"><div class="kpi-label">日均销售额</div><div class="kpi-value">'+fM(k.sales/days)+'</div>';
-  if(ck){let cdays=Math.max((new Date(ce||cs)-new Date(cs||cs))/864e5+1,1);h+='<div class="kpi-sub"><span class="'+cC(ch(k.sales/days,ck.sales/cdays))+'">'+cA(ch(k.sales/days,ck.sales/cdays))+' '+fP(Math.abs(ch(k.sales/days,ck.sales/cdays)||0))+' vs '+cl+'</span></div>';}
+  if(ck){let cdays=Math.max((new Date(ce||cs)-new Date(cs||cs))/864e5+1,1);h+='<div class="kpi-sub">'+compSub(k.sales/days,ck.sales/cdays,fM)+'</div>';}
   h+='</div>';
-  h+='<div class="kpi-card orange"><div class="kpi-label">日均平台UV</div><div class="kpi-value">'+fN(k.pUV)+'</div>';
-  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.pUV,ck.pUV))+'">'+cA(ch(k.pUV,ck.pUV))+' '+fP(Math.abs(ch(k.pUV,ck.pUV)||0))+' vs '+cl+'</span></div>';
+  h+='<div class="kpi-card orange"><div class="kpi-label">日均平台UV</div><div class="kpi-value">'+fN(k.pUV,0,true)+'</div>';
+  if(ck)h+='<div class="kpi-sub">'+compSub(k.pUV,ck.pUV,x=>fN(x,0,true))+'</div>';
   h+='</div>';
-  h+='<div class="kpi-card purple"><div class="kpi-label">日均店铺UV</div><div class="kpi-value">'+fN(k.sUV)+'</div>';
-  if(ck)h+='<div class="kpi-sub"><span class="'+cC(ch(k.sUV,ck.sUV))+'">'+cA(ch(k.sUV,ck.sUV))+' '+fP(Math.abs(ch(k.sUV,ck.sUV)||0))+' vs '+cl+'</span></div>';
+  h+='<div class="kpi-card purple"><div class="kpi-label">日均店铺UV</div><div class="kpi-value">'+fN(k.sUV,0,true)+'</div>';
+  if(ck)h+='<div class="kpi-sub">'+compSub(k.sUV,ck.sUV,x=>fN(x,0,true))+'</div>';
   h+='</div>';
   document.getElementById('tkpi').innerHTML=h;
   let puvMin=Math.min(...d.puv.filter(v=>v!=null)),suvMin=Math.min(...d.suv.filter(v=>v!=null));
@@ -1047,7 +1048,7 @@ async function atf(){
   document.getElementById('tth').innerHTML='<th>日期</th><th>平台</th><th>店铺</th><th>平台UV</th><th>店铺UV</th><th>店铺UV占比</th><th>转化率</th><th>销量</th><th>销售额</th>';
   if(d.detail&&d.detail.length){
     let th='';
-    d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td>'+fN(r.puv)+'</td><td>'+fN(r.suv)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td>'+fN(r.qty)+'</td><td>'+fM(r.sales)+'</td></tr>';});
+    d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td>'+fN(r.puv,0,true)+'</td><td>'+fN(r.suv,0,true)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td>'+fN(r.qty)+'</td><td>'+fM(r.sales)+'</td></tr>';});
     document.getElementById('ttb').innerHTML=th;
   } else {document.getElementById('ttb').innerHTML='<tr><td colspan="9" class="empty-state">无数据</td></tr>';}
   // Enhanced Analysis
@@ -1067,7 +1068,7 @@ async function atf(){
     let avgCVR=cvrValid.length>0?cvrValid.reduce((a,b)=>a+b,0)/cvrValid.length:0;
     let dailyOrders=tq2/k.days;
     let dailySales=ts2/k.days;
-    ana+='<p><span class="hl">🔻 转化漏斗</span>：日均曝光 <b>'+fN(Math.round(avgPUV))+'</b> → 进店 <b>'+fN(Math.round(avgSUV))+'</b>（进店率 '+fP(avgPUV>0?avgSUV/avgPUV:0)+'）→ 下单 <b>'+fN(Math.round(dailyOrders))+'</b>（转化率 '+fP(avgCVR,2)+'）→ 成交 <b>'+fM(Math.round(dailySales))+'</b>（客单价 '+fM(dailyOrders>0?dailySales/dailyOrders:0)+'）。</p>';
+    ana+='<p><span class="hl">🔻 转化漏斗</span>：日均曝光 <b>'+fN(Math.round(avgPUV),0,true)+'</b> → 进店 <b>'+fN(Math.round(avgSUV),0,true)+'</b>（进店率 '+fP(avgPUV>0?avgSUV/avgPUV:0)+'）→ 下单 <b>'+fN(Math.round(dailyOrders))+'</b>（转化率 '+fP(avgCVR,2)+'）→ 成交 <b>'+fM(Math.round(dailySales))+'</b>（客单价 '+fM(dailyOrders>0?dailySales/dailyOrders:0)+'）。</p>';
   }
 
   // ---- Comparison ----
@@ -1078,8 +1079,8 @@ async function atf(){
     let rows=[];
     rows.push({name:'销售额',prev:ck.sales,cur:k.sales,ch:sc,fmt:fM,insight:sc>=0.1?'销售显著增长，运营效果明显':(sc>=0?'小幅增长，保持稳定':(sc>=-0.1?'略有下滑，需关注':'明显下滑，需排查原因'))});
     rows.push({name:'销量',prev:ck.qty,cur:k.qty,ch:qc,fmt:fN,insight:qc>=0.1?'销量增长好，市场需求旺盛':(qc>=0?'稳定':'需求在减弱，考虑促销拉动')});
-    rows.push({name:'平台UV',prev:ck.pUV,cur:k.pUV,ch:puc,fmt:x=>fN(Math.round(x)),insight:puc>=0.05?'流量上涨，曝光增加':(puc>=0?'流量平稳':(puc>=-0.05?'流量微降':'流量明显减少，检查平台活动及排名'))});
-    rows.push({name:'店铺UV',prev:ck.sUV,cur:k.sUV,ch:uc,fmt:x=>fN(Math.round(x)),insight:uc>=0.05?'进店流量增长':(uc>=0?'稳定':(uc>=-0.05?'小幅下降':'进店流量明显下滑，检查点击率和主图'))});
+    rows.push({name:'平台UV',prev:ck.pUV,cur:k.pUV,ch:puc,fmt:x=>fN(Math.round(x),0,true),insight:puc>=0.05?'流量上涨，曝光增加':(puc>=0?'流量平稳':(puc>=-0.05?'流量微降':'流量明显减少，检查平台活动及排名'))});
+    rows.push({name:'店铺UV',prev:ck.sUV,cur:k.sUV,ch:uc,fmt:x=>fN(Math.round(x),0,true),insight:uc>=0.05?'进店流量增长':(uc>=0?'稳定':(uc>=-0.05?'小幅下降':'进店流量明显下滑，检查点击率和主图'))});
     rows.forEach(r=>{ana+='<tr><td style="padding:6px 8px">'+r.name+'</td><td style="padding:6px 8px;text-align:right">'+r.fmt(r.prev)+'</td><td style="padding:6px 8px;text-align:right">'+r.fmt(r.cur)+'</td><td style="padding:6px 8px;text-align:center"><span class="'+(r.ch>=0?'up':'down')+'">'+(r.ch>=0?'↑':'↓')+fP(Math.abs(r.ch||0))+'</span></td><td style="padding:6px 8px;font-size:11px;color:#666">'+r.insight+'</td></tr>';});
     ana+='</table></div>';
   }
@@ -1103,8 +1104,8 @@ async function atf(){
     let sTrend=Math.abs(sSlope)>sAvg*0.02?(sSlope>0?'上升':'下降'):'平稳';
 
     ana+='<div class="ana-block"><h4>📉 流量诊断</h4>';
-    ana+='<p>平台UV呈<span class="insight-tag '+(pTrend==='上升'?'pos':(pTrend==='下降'?'neg':'neutral'))+'">'+pTrend+'趋势</span>，期间从 '+fN(Math.round(pFirst))+' → '+fN(Math.round(pLast))+'（'+fP(pChange)+'）。';
-    ana+='店铺UV呈<span class="insight-tag '+(sTrend==='上升'?'pos':(sTrend==='下降'?'neg':'neutral'))+'">'+sTrend+'趋势</span>，期间从 '+fN(Math.round(sFirst))+' → '+fN(Math.round(sLast))+'（'+fP(sChange)+'）。';
+    ana+='<p>平台UV呈<span class="insight-tag '+(pTrend==='上升'?'pos':(pTrend==='下降'?'neg':'neutral'))+'">'+pTrend+'趋势</span>，期间从 '+fN(Math.round(pFirst),0,true)+' → '+fN(Math.round(pLast),0,true)+'（'+fP(pChange)+'）。';
+    ana+='店铺UV呈<span class="insight-tag '+(sTrend==='上升'?'pos':(sTrend==='下降'?'neg':'neutral'))+'">'+sTrend+'趋势</span>，期间从 '+fN(Math.round(sFirst),0,true)+' → '+fN(Math.round(sLast),0,true)+'（'+fP(sChange)+'）。';
 
     if((pSlope>0&&sSlope>0)||(pSlope<0&&sSlope<0))ana+='平台与店铺UV趋势<span class="insight-tag pos">一致</span>，流量转化效率稳定。';
     else ana+='<span class="insight-tag warn">⚠ 平台与店铺UV走势背离</span>，'+(pSlope>0?'平台流量涨但进店不涨，需优化主图/标题提升点击率':'进店流量在涨但平台曝光下降，检查排名变化')+'。';
