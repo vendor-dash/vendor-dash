@@ -61,6 +61,7 @@ body{background:#f0f2f5;color:#333;overflow-x:hidden}
 .table-header{padding:16px 18px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
 .table-title{font-size:15px;font-weight:600}
 .table-wrap{overflow:auto;max-height:600px;position:relative}
+.table-note{padding:10px 18px;font-size:12px;color:#666;background:#fafafa;border-top:1px dashed #e0e0e0;line-height:1.6}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead{position:sticky;top:0;z-index:6}
 th{background:#1a237e;color:#fff;padding:10px 12px;text-align:left;font-weight:500;white-space:nowrap;position:relative}
@@ -260,7 +261,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="ibtn o" onclick="dtXLSX2()">Excel</button>
 </div>
 <div class="chart-card" style="margin-bottom:20px"><div class="chart-header"><div class="chart-title">TOP30 SPU 销售额排行</div><button class="ibtn b" onclick="dc('ct30')">图片</button></div><div class="chart-body tall"><canvas id="ct30"></canvas></div></div>
-<div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dtXLSX2()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-top30"></div></div></div><div class="table-wrap"><table id="t30-table"><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dtXLSX2()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-top30"></div></div></div><div class="table-wrap"><table id="t30-table"><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div><div class="table-note" id="t30-note"></div></div>
 </div>
 <!-- CAT ANALYSIS -->
 <div class="sub-content" id="sc-catana">
@@ -1829,11 +1830,12 @@ async function at(){
   function addCol(group,label){window._top30ColDefs.push({g:group,l:label});return label;}
   let th=[
     addCol('基础','排名'),addCol('基础','SPU'),addCol('基础','品类'),
-    addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额',momLab+'<br>销额'),addCol('销额','销售额同比'),addCol('销额',yoyLab+'<br>销额'),
-    addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量',momLab+'<br>销量'),addCol('销量','销量同比'),addCol('销量',yoyLab+'<br>销量')
+    addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额','环比销额'),addCol('销额','销售额同比'),addCol('销额','同比销额'),
+    addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量','环比销量'),addCol('销量','销量同比'),addCol('销量','同比销量')
   ];
   document.getElementById('t30th').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
   buildColPanel('col-panel-top30',window._top30ColDefs);
+  document.getElementById('t30-note').innerHTML='📅 <b>日期说明</b>：环比期 = '+(d.mom?(d.mom.start+' ~ '+d.mom.end):'上期')+'（上一相邻周期）；同比期 = '+(d.yoy?(d.yoy.start+' ~ '+d.yoy.end):'去年同期')+'（去年同周期）。表中「环比销额/环比销量」为环比期实际值，「同比销额/同比销量」为同比期实际值。';
   let h='';
   d.top30.forEach(v=>{
     let vBadge=v.variantCount>1?' <span class="var-badge" title="'+(v.variantList||[]).join(', ')+'">('+v.variantCount+'变体)</span>':'';
