@@ -1032,6 +1032,33 @@ function processProductShopCatAnalysis(start,end,shop,cat){
     spu_decline.sort((a,b)=>a.sales_pct-b.sales_pct);
   }
 
+  // 风险品类汇总（本期 vs 上期）：按品类聚合，含拖累 TOP SPU
+  let risk_cats=[];
+  if(li_1>=0){
+    for(let c of all_cats){
+      let curr=period_data[li].cats[c]||{sales:0,qty:0,profit:0};
+      let prev=period_data[li_1].cats[c]||{sales:0,qty:0,profit:0};
+      if(curr.sales<=0) continue;
+      let sales_chg=curr.sales-prev.sales;
+      let qty_chg=curr.qty-prev.qty;
+      let sales_pct=prev.sales>0?sales_chg/prev.sales:null;
+      let qty_pct=prev.qty>0?qty_chg/prev.qty:null;
+      let isRisk=(sales_pct!==null&&sales_pct<-0.2)||(qty_pct!==null&&qty_pct<-0.3);
+      if(!isRisk) continue;
+      let margin=curr.sales>0?curr.profit/curr.sales:0;
+      let profit_chg=curr.profit-prev.profit;
+      let reason='';
+      if(qty_pct!==null&&qty_pct<-0.3 && sales_pct!==null&&sales_pct<-0.2) reason='🔻 销量同步大降，需求可能萎缩';
+      else if(qty_pct!==null&&qty_pct<-0.2) reason='🔻 销量下降明显，需关注流量/转化';
+      else if(sales_pct!==null&&sales_pct<-0.2 && qty_pct!==null&&qty_pct>0) reason='⚠️ 销额降但销量涨，均价/促销拖累';
+      else if(sales_pct!==null&&sales_pct<-0.2) reason='⚠️ 销售额下滑，排查价格/竞争/评价';
+      else reason='需关注市场动态';
+      let spus=(spu_decline||[]).filter(s=>s.category===c).sort((a,b)=>a.sales_chg-b.sales_chg).slice(0,5);
+      risk_cats.push({cat:c,sales_pct,qty_pct,prev_sales:prev.sales,curr_sales:curr.sales,sales_chg,margin,profit_chg,reason,spus,total_qty:curr.qty,prev_qty:prev.qty});
+    }
+    risk_cats.sort((a,b)=>a.sales_chg-b.sales_chg);
+  }
+
   let yoy_start=addDays(s_d,-365),yoy_end=addDays(e_d,-365);
   let yoy_rows=filt(data,yoy_start,yoy_end,shop?shop.split(','):null,cat);
   let yoy_total_sales=yoy_rows.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
@@ -1039,7 +1066,7 @@ function processProductShopCatAnalysis(start,end,shop,cat){
   return{
     period:{start,end,days,mom_start:periods[1]?.start||'',mom_end:periods[1]?.end||'',yoy_start,yoy_end,yoy_sales:yoy_total_sales,yoy_qty:yoy_total_qty},
     periods:period_data.map(p=>({label:p.label,start:p.start,end:p.end,total_sales:p.total_sales,total_qty:p.total_qty,total_profit:p.total_profit})),
-    cat_rows,all_cats,selected_shop:shop||'全部店铺',selected_cat:cat||'全部类目',declining_shops,spu_decline,estInfo
+    cat_rows,all_cats,selected_shop:shop||'全部店铺',selected_cat:cat||'全部类目',declining_shops,spu_decline,risk_cats,estInfo
   };
 }
 
@@ -1946,6 +1973,13 @@ function caXLSX(){
 }
 
 // ====== SHOP-CAT ANALYSIS RENDER ======
+function toggleRiskCat(rowId){
+  let row=document.getElementById(rowId);
+  if(!row) return;
+  let btn=document.getElementById(rowId+'-btn');
+  if(row.style.display==='none'||row.style.display===''){row.style.display='table-row';if(btn)btn.textContent='−';}
+  else{row.style.display='none';if(btn)btn.textContent='+';}
+}
 async function asc(){
   let s=document.getElementById('scs').value,e=document.getElementById('sce').value,shop=getMsValue('ms-scsshop'),cat=document.getElementById('scscat').value;
   if(!s||!e){alert('请选择日期');return}
@@ -2024,19 +2058,41 @@ async function asc(){
     ana+='</table></div>';
   }
 
-  // SPU 本周下滑明细
-  let sd=d.spu_decline||[];
-  if(sd.length>0){
-    let pLabel=periods[li]?.label||'本期',pPrevLabel=periods[li_1]?.label||'上期';
-    ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 SPU 本周下滑明细</h4>';
-    ana+='<p style="font-size:12px;color:#666">以下 SPU 在 <b>'+pLabel+'</b> 较 <b>'+pPrevLabel+'</b> 销售额下降超过 20% 或销量下降超过 30%（按销额降幅排序）：</p>';
-    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#fce4e4"><th style="padding:4px 8px;text-align:left">SPU</th><th style="padding:4px 8px;text-align:center">品类</th><th style="padding:4px 8px;text-align:right">本期销售额</th><th style="padding:4px 8px;text-align:right">上期销售额</th><th style="padding:4px 8px;text-align:center">销额变化</th><th style="padding:4px 8px;text-align:right">本期销量</th><th style="padding:4px 8px;text-align:right">上期销量</th><th style="padding:4px 8px;text-align:center">销量变化</th><th style="padding:4px 8px;text-align:left">建议</th></tr>';
-    sd.slice(0,15).forEach(s=>{
-      let advice=s.sales_pct<-0.5?'严重下滑，建议排查差评/竞品/库存':(s.sales_pct<-0.3?'明显下滑，需促销或补流':'持续下滑，加强监控');
-      ana+='<tr><td style="padding:4px 8px;font-weight:600">'+s.spu+'</td><td style="padding:4px 8px;text-align:center;font-size:12px">'+s.category+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.sales)+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.prev_sales)+'</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">'+(s.sales_chg>=0?'+':'')+fM(s.sales_chg)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.qty)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.prev_qty)+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;">'+(s.qty_chg>=0?'<span class="up">+':'<span class="down">')+fN(Math.abs(s.qty_chg))+'</span></td><td style="padding:4px 8px;font-size:12px">'+advice+'</td></tr>';
+  // 风险品类汇总（本期 vs 上期）
+  let rc=d.risk_cats||[];
+  if(rc.length>0){
+    let totalImpact=rc.reduce((s,c)=>s+c.sales_chg,0);
+    ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 环比下降超 30% 的风险品类（'+rc.length+' 个）</h4>';
+    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#fce4e4"><th style="padding:5px 8px;text-align:center;width:40px">展开</th><th style="padding:5px 8px;text-align:left">品类</th><th style="padding:5px 8px;text-align:center">环比</th><th style="padding:5px 8px;text-align:right">上期 → 本期</th><th style="padding:5px 8px;text-align:right">毛利</th><th style="padding:5px 8px;text-align:right">减量影响</th><th style="padding:5px 8px;text-align:left">原因研判</th><th style="padding:5px 8px;text-align:left">拖累 TOP SPU</th></tr></thead><tbody>';
+    rc.forEach((c,idx)=>{
+      let riskId='risk-'+idx;
+      let topSpuHtml=c.spus.slice(0,3).map(s=>'<span class="insight-tag neg">'+s.spu+' '+fM(s.sales_chg)+'</span>').join('');
+      ana+='<tr style="cursor:pointer;background:#fff" onclick="toggleRiskCat(\''+riskId+'\')">';
+      ana+='<td style="padding:5px 8px;text-align:center"><span id="'+riskId+'-btn" style="display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;background:#e74c3c;color:#fff;border-radius:3px;font-size:12px">+</span></td>';
+      ana+='<td style="padding:5px 8px;font-weight:600">'+c.cat+'</td>';
+      ana+='<td style="padding:5px 8px;text-align:center"><span class="down">▼ '+fP(Math.abs(c.sales_pct))+'</span></td>';
+      ana+='<td style="padding:5px 8px;text-align:right">'+fM(c.prev_sales)+' → '+fM(c.curr_sales)+'</td>';
+      ana+='<td style="padding:5px 8px;text-align:right">'+fP(c.margin)+'<br><span style="font-size:11px;color:#666">'+fM(c.profit_chg)+'</span></td>';
+      ana+='<td style="padding:5px 8px;text-align:right;color:#c62828;font-weight:700;">'+fM(c.sales_chg)+'</td>';
+      ana+='<td style="padding:5px 8px;font-size:12px">'+c.reason+'</td>';
+      ana+='<td style="padding:5px 8px;">'+topSpuHtml+'</td>';
+      ana+='</tr>';
+      ana+='<tr id="'+riskId+'" style="display:none;background:#fffafa"><td colspan="8" style="padding:8px 12px;">';
+      ana+='<p style="margin:0 0 6px;font-size:12px;color:#666;font-weight:600">'+c.cat+' 下滑 SPU 明细</p>';
+      ana+='<table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid #f8bbd0"><thead><tr style="background:#fce4e4"><th style="padding:4px 8px;text-align:left">SPU</th><th style="padding:4px 8px;text-align:right">本期销售额</th><th style="padding:4px 8px;text-align:right">上期销售额</th><th style="padding:4px 8px;text-align:center">销额变化</th><th style="padding:4px 8px;text-align:right">本期销量</th><th style="padding:4px 8px;text-align:right">上期销量</th><th style="padding:4px 8px;text-align:center">销量变化</th><th style="padding:4px 8px;text-align:left">建议</th></tr></thead><tbody>';
+      if(c.spus.length===0){
+        ana+='<tr><td colspan="8" style="padding:6px 8px;text-align:center;color:#999">该品类下无单独 SPU 达到下滑阈值</td></tr>';
+      } else {
+        c.spus.forEach(s=>{
+          let advice=s.sales_pct<-0.5?'严重下滑，建议排查差评/竞品/库存':(s.sales_pct<-0.3?'明显下滑，需促销或补流':'持续下滑，加强监控');
+          ana+='<tr><td style="padding:4px 8px;font-weight:600">'+s.spu+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.sales)+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.prev_sales)+'</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">'+(s.sales_chg>=0?'+':'')+fM(s.sales_chg)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.qty)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.prev_qty)+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;">'+(s.qty_chg>=0?'<span class="up">+':'<span class="down">')+fN(Math.abs(s.qty_chg))+'</span></td><td style="padding:4px 8px;font-size:11px">'+advice+'</td></tr>';
+        });
+      }
+      ana+='</tbody></table></td></tr>';
     });
-    if(sd.length>15)ana+='<tr><td colspan="9" style="padding:6px 8px;font-size:12px;color:#666;text-align:center">还有 '+(sd.length-15)+' 个 SPU 下滑，缩小筛选范围或导出明细查看</td></tr>';
-    ana+='</table></div>';
+    ana+='</tbody></table>';
+    ana+='<p style="margin-top:8px;font-size:12px;color:#c62828;font-weight:600">📉 以上 '+rc.length+' 个品类合计拖累 '+fM(totalImpact)+' 销售额。需紧急排查：差评影响？竞品降价？Listing 权重下降？建议针对性促销或优化。</p>';
+    ana+='</div>';
   }
   document.getElementById('scana').innerHTML=ana;
 }
