@@ -1499,9 +1499,17 @@ async function ac(){
     ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 连续下降预警</h4>';
     // 表头：品类 | 各期销售额（动态列） | 各期降幅 | 累计降幅 | 建议
     let maxPeriods=Math.max(...dc.map(c=>(c.sales_trend||[]).length),1);
+    let labelRef=(dc.find(c=>c.period_labels&&c.period_labels.length)||{}).period_labels||[];
     let dHead='<tr style="background:#fce4e4"><th style="padding:6px 8px;text-align:left">品类</th><th style="padding:6px 8px;text-align:center">连续<br>期数</th>';
-    for(let pi=0;pi<maxPeriods;pi++)dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px">第'+(pi+1)+'期<br>销售额</th>';
-    for(let pi=0;pi<maxPeriods-1;pi++)dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px;color:#c62828">第'+(pi+1)+'→'+(pi+2)+'<br>降幅</th>';
+    for(let pi=0;pi<maxPeriods;pi++){
+      let lbl=labelRef[pi]||('第'+(pi+1)+'期');
+      dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px">'+lbl+'<br>销售额</th>';
+    }
+    for(let pi=0;pi<maxPeriods-1;pi++){
+      let lblA=labelRef[pi]||('第'+(pi+1)+'期');
+      let lblB=labelRef[pi+1]||('第'+(pi+2)+'期');
+      dHead+='<th style="padding:6px 8px;text-align:center;font-size:11px;color:#c62828">'+lblA+'<br>→ '+lblB+'<br>降幅</th>';
+    }
     dHead+='<th style="padding:6px 8px;text-align:center">累计<br>降幅</th><th style="padding:6px 8px;text-align:left">运营建议</th></tr>';
     ana+='<table style="width:100%;border-collapse:collapse;font-size:13px">'+dHead;
     dc.forEach(c=>{
