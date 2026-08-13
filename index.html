@@ -260,7 +260,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="ibtn o" onclick="dtXLSX2()">Excel</button>
 </div>
 <div class="chart-card" style="margin-bottom:20px"><div class="chart-header"><div class="chart-title">TOP30 SPU 销售额排行</div><button class="ibtn b" onclick="dc('ct30')">图片</button></div><div class="chart-body tall"><canvas id="ct30"></canvas></div></div>
-<div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><button class="ibtn o" onclick="dtXLSX2()">Excel</button></div><div class="table-wrap"><table><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div></div>
+<div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dtXLSX2()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-top30"></div></div></div><div class="table-wrap"><table id="t30-table"><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div></div>
 </div>
 <!-- CAT ANALYSIS -->
 <div class="sub-content" id="sc-catana">
@@ -824,8 +824,11 @@ function processProductTop30(start,end,shop,cat){
       rank:i+1,spu:v.spu,category:v.category,
       sales:v.sales,sales_share:total_sales>0?v.sales/total_sales:0,
       sales_mom:ch(v.sales,mv.sales),sales_yoy:ch(v.sales,yv.sales),
+      sales_mom_amount:v.sales-(mv.sales||0),sales_yoy_amount:v.sales-(yv.sales||0),
       qty:v.qty,qty_share:total_qty>0?v.qty/total_qty:0,
       qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
+      qty_mom_amount:v.qty-(mv.qty||0),qty_yoy_amount:v.qty-(yv.qty||0),
+      mom_sales:mv.sales||0,yoy_sales:yv.sales||0,mom_qty:mv.qty||0,yoy_qty:yv.qty||0,
       variantCount:v.variantList?v.variantList.length:1,variantList:v.variantList||[v.spu]
     };
   });
@@ -996,6 +999,39 @@ function processProductShopCatAnalysis(start,end,shop,cat){
     }
   }
   declining_shops.sort((a,b)=>b.streak-a.streak||a.drop_pct-b.drop_pct);
+
+  // SPU 级本期 vs 上期下滑明细（用于店铺类目分析总结）
+  let spu_decline=[];
+  let li=periods.length-1,li_1=periods.length-2;
+  if(li_1>=0){
+    let currRows=filt(data,periods[li].start,periods[li].end,shop?shop.split(','):null,cat);
+    let prevRows=filt(data,periods[li_1].start,periods[li_1].end,shop?shop.split(','):null,cat);
+    let spuCurr={},spuPrev={};
+    for(let r of currRows){
+      let code=r[PI['SPU']];if(!code)continue;
+      let s=baseSPU(code);
+      if(!spuCurr[s])spuCurr[s]={spu:s,category:r[PI['品类']]||'-',shop:r[PI['店铺']]||'-',qty:0,sales:0};
+      spuCurr[s].qty+=r[PI['销量']]||0;spuCurr[s].sales+=r[PI['销售额']]||0;
+    }
+    for(let r of prevRows){
+      let code=r[PI['SPU']];if(!code)continue;
+      let s=baseSPU(code);
+      if(!spuPrev[s])spuPrev[s]={qty:0,sales:0};
+      spuPrev[s].qty+=r[PI['销量']]||0;spuPrev[s].sales+=r[PI['销售额']]||0;
+    }
+    for(let s in spuCurr){
+      let c=spuCurr[s],p=spuPrev[s]||{qty:0,sales:0};
+      let sales_chg=c.sales-p.sales,qty_chg=c.qty-p.qty;
+      let sales_pct=p.sales>0?sales_chg/p.sales:(c.sales>0?1:null);
+      let qty_pct=p.qty>0?qty_chg/p.qty:(c.qty>0?1:null);
+      let isDecline=(sales_pct!==null&&sales_pct<-0.2&&c.sales>200)||(qty_pct!==null&&qty_pct<-0.3&&c.qty>=5);
+      if(isDecline){
+        spu_decline.push({spu:c.spu,category:c.category,shop:c.shop,qty:c.qty,sales:c.sales,prev_qty:p.qty,prev_sales:p.sales,sales_chg,qty_chg,sales_pct,qty_pct});
+      }
+    }
+    spu_decline.sort((a,b)=>a.sales_pct-b.sales_pct);
+  }
+
   let yoy_start=addDays(s_d,-365),yoy_end=addDays(e_d,-365);
   let yoy_rows=filt(data,yoy_start,yoy_end,shop?shop.split(','):null,cat);
   let yoy_total_sales=yoy_rows.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
@@ -1003,7 +1039,7 @@ function processProductShopCatAnalysis(start,end,shop,cat){
   return{
     period:{start,end,days,mom_start:periods[1]?.start||'',mom_end:periods[1]?.end||'',yoy_start,yoy_end,yoy_sales:yoy_total_sales,yoy_qty:yoy_total_qty},
     periods:period_data.map(p=>({label:p.label,start:p.start,end:p.end,total_sales:p.total_sales,total_qty:p.total_qty,total_profit:p.total_profit})),
-    cat_rows,all_cats,selected_shop:shop||'全部店铺',selected_cat:cat||'全部类目',declining_shops,estInfo
+    cat_rows,all_cats,selected_shop:shop||'全部店铺',selected_cat:cat||'全部类目',declining_shops,spu_decline,estInfo
   };
 }
 
@@ -1759,19 +1795,30 @@ async function at(){
   let s=document.getElementById('tss').value,e=document.getElementById('tee').value,shop=getMsValue('ms-tshop2'),cat=document.getElementById('tcat').value;
   if(!s||!e){alert('请选择日期');return}
   let d=processProductTop30(s,e,shop,cat);
-  let th=['排名','SPU','品类','销售额','销售额占比','销售额环比','销售额同比','销量','销量占比','销量环比','销量同比'];
-  document.getElementById('t30th').innerHTML=th.map(x=>'<th>'+x+'</th>').join('');
+  // 列定义（用于表头渲染 + 列显隐控制）
+  window._top30ColDefs=[];
+  function addCol(group,label){window._top30ColDefs.push({g:group,l:label});return label;}
+  let th=[
+    addCol('基础','排名'),addCol('基础','SPU'),addCol('基础','品类'),
+    addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额','销售额环比金额'),addCol('销额','销售额同比'),
+    addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量','销量环比数量'),addCol('销量','销量同比')
+  ];
+  document.getElementById('t30th').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  buildColPanel('col-panel-top30',window._top30ColDefs);
   let h='';
   d.top30.forEach(v=>{
     let vBadge=v.variantCount>1?' <span class="var-badge" title="'+(v.variantList||[]).join(', ')+'">('+v.variantCount+'变体)</span>':'';
     h+='<tr><td>'+v.rank+'</td><td>'+v.spu+vBadge+'</td><td>'+v.category+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
+    h+='<td><span class="'+cC(v.sales_mom_amount)+'">'+(v.sales_mom_amount>=0?'+':'')+fM(Math.abs(v.sales_mom_amount))+'</span></td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
     h+='<td>'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    h+='<td><span class="'+cC(v.qty_mom_amount)+'">'+(v.qty_mom_amount>=0?'+':'')+fN(Math.abs(v.qty_mom_amount))+'</span></td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td></tr>';
   });
-  document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="11" class="empty-state">无数据</td></tr>';
+  document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="13" class="empty-state">无数据</td></tr>';
+  applyColVisibility('col-panel-top30');
   if(pCharts.t30)pCharts.t30.destroy();
   pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
 }
@@ -1974,6 +2021,21 @@ async function asc(){
       let advice=c.drop_pct>0.5?'严重下滑，考虑调整资源或优化选品':(c.drop_pct>0.3?'明显下滑，排查竞争并制定促销计划':(c.drop_pct>0.15?'持续下滑，关注市场趋势':'小幅下滑，加强监控'));
       ana+='<tr><td style="padding:4px 8px;font-weight:600">'+c.name+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;color:#e74c3c;">'+c.streak+'期</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">↓'+fP(Math.abs(c.drop_pct))+'</td><td style="padding:4px 8px;font-size:12px">'+advice+'</td></tr>';
     });
+    ana+='</table></div>';
+  }
+
+  // SPU 本周下滑明细
+  let sd=d.spu_decline||[];
+  if(sd.length>0){
+    let pLabel=periods[li]?.label||'本期',pPrevLabel=periods[li_1]?.label||'上期';
+    ana+='<div class="ana-block" style="border-left:4px solid #e74c3c;background:#fff5f5;"><h4>🔴 SPU 本周下滑明细</h4>';
+    ana+='<p style="font-size:12px;color:#666">以下 SPU 在 <b>'+pLabel+'</b> 较 <b>'+pPrevLabel+'</b> 销售额下降超过 20% 或销量下降超过 30%（按销额降幅排序）：</p>';
+    ana+='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="background:#fce4e4"><th style="padding:4px 8px;text-align:left">SPU</th><th style="padding:4px 8px;text-align:center">品类</th><th style="padding:4px 8px;text-align:right">本期销售额</th><th style="padding:4px 8px;text-align:right">上期销售额</th><th style="padding:4px 8px;text-align:center">销额变化</th><th style="padding:4px 8px;text-align:right">本期销量</th><th style="padding:4px 8px;text-align:right">上期销量</th><th style="padding:4px 8px;text-align:center">销量变化</th><th style="padding:4px 8px;text-align:left">建议</th></tr>';
+    sd.slice(0,15).forEach(s=>{
+      let advice=s.sales_pct<-0.5?'严重下滑，建议排查差评/竞品/库存':(s.sales_pct<-0.3?'明显下滑，需促销或补流':'持续下滑，加强监控');
+      ana+='<tr><td style="padding:4px 8px;font-weight:600">'+s.spu+'</td><td style="padding:4px 8px;text-align:center;font-size:12px">'+s.category+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.sales)+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.prev_sales)+'</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">'+(s.sales_chg>=0?'+':'')+fM(s.sales_chg)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.qty)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.prev_qty)+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;">'+(s.qty_chg>=0?'<span class="up">+':'<span class="down">')+fN(Math.abs(s.qty_chg))+'</span></td><td style="padding:4px 8px;font-size:12px">'+advice+'</td></tr>';
+    });
+    if(sd.length>15)ana+='<tr><td colspan="9" style="padding:6px 8px;font-size:12px;color:#666;text-align:center">还有 '+(sd.length-15)+' 个 SPU 下滑，缩小筛选范围或导出明细查看</td></tr>';
     ana+='</table></div>';
   }
   document.getElementById('scana').innerHTML=ana;
