@@ -974,7 +974,13 @@ function processProductShopCatAnalysis(start,end,shop,cat){
     row.diff_sales_pct=row['p'+(periods.length-2)+'_sales']!==0?(row['p'+(periods.length-1)+'_sales']-row['p'+(periods.length-2)+'_sales'])/Math.abs(row['p'+(periods.length-2)+'_sales']):null;
     return row;
   });
-  cat_rows.sort((a,b)=>(b['p'+(periods.length-1)+'_sales']||0)-(a['p'+(periods.length-1)+'_sales']||0));
+  cat_rows.sort((a,b)=>{
+    let aLast=a['p'+(periods.length-1)+'_sales']||0,bLast=b['p'+(periods.length-1)+'_sales']||0;
+    if(bLast!==aLast)return bLast-aLast;
+    let aTotal=0,bTotal=0;
+    for(let i=0;i<periods.length;i++){aTotal+=a['p'+i+'_sales']||0;bTotal+=b['p'+i+'_sales']||0;}
+    return bTotal-aTotal;
+  });
   let all_shop_names=[...new Set(data.map(r=>r[PI['店铺']]).filter(x=>x))].sort();
   let declining_shops=[];
   for(let ash of all_shop_names){
