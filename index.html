@@ -1371,20 +1371,19 @@ async function ac(){
   Object.values(pCharts).forEach(c=>safeDestroy(c));pCharts={};
 
   // ── 列定义(含分组,用于表头渲染+列显隐控制) ──
+  // 顺序：品类 → 本期销额/同环比 → 前两月销额 → 毛利 → 本期销量/同环比 → 前两月销量/占比
   window._catColDefs=[];
   function addCol(group,label){window._catColDefs.push({g:group,l:label});return label;}
   let th=[addCol('品类','品类')];
+  th=th.concat([addCol('销额','本期销售额'),addCol('销额','销售额占比'),addCol('销额','同比期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比')]);
   d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'销售额'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'日均销售额'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'销售额占比'))});
-  th=th.concat([addCol('销额','销售额占比'),addCol('销额','本期销售额')]);
-  th=th.concat([addCol('销额','同比期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比')]);
+  th=th.concat([addCol('毛利','本期毛利额'),addCol('毛利','毛利额环比'),addCol('毛利','毛利额同比'),addCol('毛利','本期毛利率')]);
+  th=th.concat([addCol('销量','本期销量'),addCol('销量','同比期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比')]);
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'日均销量'))});
-  d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量占比'))});
-  th=th.concat([addCol('销量','销量占比'),addCol('销量','本期销量')]);
-  th=th.concat([addCol('销量','同比期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比')]);
-  th=th.concat([addCol('毛利','本期毛利额'),addCol('毛利','毛利额环比'),addCol('毛利','毛利额同比'),addCol('毛利','本期毛利率')]);
+  th=th.concat([addCol('销量','销量占比')]);
   document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
   buildColPanel('col-panel-cat',window._catColDefs);
 
@@ -1392,47 +1391,48 @@ async function ac(){
   let h='';
   d.cat_list.forEach(v=>{
     h+='<tr><td>'+v.name+'</td>';
-    // ── 销额组：前两月总额 → 前两月日均 → 前两月占比 → 本期占比 → 本期 → 对比期 → 同环比 ──
-    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM(v.prev_sales[i]||0)+'</td>';
-    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM((v.prev_sales[i]||0)/(v.prev_days[i]||1))+'</td>';
-    for(let i=0;i<(v.prev_sales_share||[]).length;i++)h+='<td>'+fP(v.prev_sales_share[i])+'</td>';
-    h+='<td>'+fP(v.sales_share)+'</td><td>'+fM(v.sales)+'</td>';
+    // ── 销额组：本期 → 占比 → 同环比 → 前两月（总额/日均/占比） ──
+    h+='<td>'+fM(v.sales)+'</td>';
+    h+='<td>'+fP(v.sales_share)+'</td>';
     h+='<td>'+fM(v.yoy_sales)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
     h+='<td>'+fM(v.mom_sales)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    // ── 销量组：前两月总额 → 前两月日均 → 前两月占比 → 本期占比 → 本期 → 对比期 → 同环比 ──
-    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i]||0)+'</td>';
-    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
-    for(let i=0;i<(v.prev_qty||[]).length;i++){let tq=d.cat_list.reduce((s,x)=>s+(x.prev_qty&&x.prev_qty.length>i?x.prev_qty[i]:0),0);h+='<td>'+fP(tq>0?(v.prev_qty[i]||0)/tq:0)+'</td>';}
-    h+='<td>'+fP(v.qty_share)+'</td><td>'+fN(v.qty)+'</td>';
-    h+='<td>'+fN(v.yoy_qty)+'</td>';
-    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.mom_qty)+'</td>';
-    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM(v.prev_sales[i]||0)+'</td>';
+    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM((v.prev_sales[i]||0)/(v.prev_days[i]||1))+'</td>';
+    for(let i=0;i<(v.prev_sales_share||[]).length;i++)h+='<td>'+fP(v.prev_sales_share[i])+'</td>';
     // ── 毛利 ──
     h+='<td>'+fM(v.profit)+'</td>';
     h+='<td>'+(v.profit_mom!=null?'<span class="'+cC(v.profit_mom)+'">'+cA(v.profit_mom)+' '+fP(Math.abs(v.profit_mom))+'</span>':'-')+'</td>';
     h+='<td>'+(v.profit_yoy!=null?'<span class="'+cC(v.profit_yoy)+'">'+cA(v.profit_yoy)+' '+fP(Math.abs(v.profit_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fP(v.margin)+'</td></tr>';
+    h+='<td>'+fP(v.margin)+'</td>';
+    // ── 销量组：本期 → 同环比 → 前两月（总额/日均） → 本期占比 ──
+    h+='<td>'+fN(v.qty)+'</td>';
+    h+='<td>'+fN(v.yoy_qty)+'</td>';
+    h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
+    h+='<td>'+fN(v.mom_qty)+'</td>';
+    h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
+    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i]||0)+'</td>';
+    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
+    h+='<td>'+fP(v.qty_share)+'</td></tr>';
   });
   h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
-  // ── 销额组合计 ──
+  // ── 销额组合计：本期 → 占比 → 同环比 → 前两月 ──
+  h+='<td>'+fM(d.total_sales)+'</td><td>100%</td>';
+  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
+  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'</td><td>-</td>';
   d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);h+='<td>'+fM(ps)+'</td>'});
   d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fM(ps/pd)+'</td>'});
   d.prev_labels.forEach(()=>{h+='<td>100%</td>'});
-  h+='<td>100%</td><td>'+fM(d.total_sales)+'</td>';
-  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
-  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'</td><td>-</td>';
-  // ── 销量组合计 ──
-  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td>'});
-  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fN(pq/pd)+'</td>'});
-  d.prev_labels.forEach(()=>{h+='<td>100%</td>'});
-  h+='<td>100%</td><td>'+fN(d.total_qty)+'</td>';
+  // ── 毛利合计 ──
+  h+='<td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td>';
+  // ── 销量组合计：本期 → 同环比 → 前两月 → 占比 ──
+  h+='<td>'+fN(d.total_qty)+'</td>';
   h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.yoy_qty||0),0))+'</td><td>-</td>';
   h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td><td>-</td>';
-  // ── 毛利合计 ──
-  h+='<td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td></tr>';
+  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td>'});
+  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fN(pq/pd)+'</td>'});
+  h+='<td>100%</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-cat');
   let ana='';
