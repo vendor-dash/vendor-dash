@@ -463,6 +463,9 @@ async function initDashboard(d){
 
 // ====== DATA PROCESSING (replaces server-side) ======
 
+// 将 Date 按本地时区格式化为 yyyy-mm-dd（修复 UTC+8 下 toISOString() 会跨日到前一天的问题）
+function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
 function _filtTraffic(data,s,e,sh){
   let shops=sh?sh.split(',').map(x=>x.trim()):[];
   return data.filter(r=>{
@@ -617,8 +620,8 @@ function processProductCat(start,end,shop,cat){
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
 
-  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
-  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return fmtDate(d);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return fmtDate(d);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
 
@@ -631,8 +634,8 @@ function processProductCat(start,end,shop,cat){
   for(let i=2;i>=1;i--){
     let m=e_d.getMonth()-i,y=e_d.getFullYear();
     if(m<0){m+=12;y--;}
-    let ms=new Date(y,m,1).toISOString().slice(0,10);
-    let me=new Date(y,m+1,0).toISOString().slice(0,10);
+    let ms=fmtDate(new Date(y,m,1));
+    let me=fmtDate(new Date(y,m+1,0));
     prev_months.push({label:(m+1)+'月',start:ms,end:me});
   }
 
@@ -734,8 +737,8 @@ function processProductSpu(start,end,shop,cat,search){
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
 
-  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
-  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return fmtDate(d);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return fmtDate(d);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
@@ -794,8 +797,8 @@ function processProductTop30(start,end,shop,cat){
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
 
-  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
-  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return fmtDate(d);}
+  function shiftYear(date){let d=new Date(date);d.setFullYear(d.getFullYear()-1);return fmtDate(d);}
   let mom_s=addDays(s_d,-days),mom_e=addDays(s_d,-1);
   let yoy_s=shiftYear(start),yoy_e=shiftYear(end);
   let mom=_filtProduct(data,mom_s,mom_e,shop,cat);
@@ -840,7 +843,7 @@ function processProductCatAnalysis(start,end,cat){
   let data=PRODUCT.rows;
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
-  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return fmtDate(d);}
 
   // === 预估逻辑：检测数据最新日期 ===
   let maxDataDate='';
@@ -849,7 +852,7 @@ function processProductCatAnalysis(start,end,cat){
   let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
   let effStart=start,effEnd=end,estInfo=null;
   if(isLastDayIncomplete){
-    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return fmtDate(d);}
     effEnd=sub1day(maxDataDate);
     if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
   }
@@ -931,14 +934,14 @@ function processProductShopCatAnalysis(start,end,shop,cat){
   let data=PRODUCT.rows;
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
-  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+  function addDays(date,n){let d=new Date(date);d.setDate(d.getDate()+n);return fmtDate(d);}
   let maxDataDate='';
   for(let r of data){let dt=r[PI['日期']];if(dt&&(!maxDataDate||dt>maxDataDate))maxDataDate=dt;}
   let gapDays=(end>maxDataDate)?Math.round((new Date(end)-new Date(maxDataDate))/864e5):0;
   let isLastDayIncomplete=(end>=maxDataDate)&&gapDays<=31;
   let effStart=start,effEnd=end,estInfo=null;
   if(isLastDayIncomplete){
-    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+    function sub1day(dt){let d=new Date(dt);d.setDate(d.getDate()-1);return fmtDate(d);}
     effEnd=sub1day(maxDataDate);
     if(effEnd<start){effEnd=end;isLastDayIncomplete=false;}
   }
@@ -1077,7 +1080,18 @@ async function atf(){
   if(!s||!e){alert('请选择日期');return}
   let cs='',ce='';
   if(mode==='custom'){cs=document.getElementById('tcs').value;ce=document.getElementById('tce').value}
-  else if(mode!=='none'){let s2=new Date(s),e2=new Date(e);let days2=Math.round((e2-s2)/864e5)+1;if(mode==='yoy'){cs=new Date(s2.getFullYear()-1,s2.getMonth(),s2.getDate()).toISOString().slice(0,10);ce=new Date(e2.getFullYear()-1,e2.getMonth(),e2.getDate()).toISOString().slice(0,10)}else{let cs2=new Date(s2);cs2.setDate(cs2.getDate()-days2);let ce2=new Date(s2);ce2.setDate(ce2.getDate()-1);cs=cs2.toISOString().slice(0,10);ce=ce2.toISOString().slice(0,10)}}
+  else if(mode!=='none'){
+    let s2=new Date(s),e2=new Date(e);
+    let days2=Math.round((e2-s2)/864e5)+1;
+    if(mode==='yoy'){
+      cs=fmtDate(new Date(s2.getFullYear()-1,s2.getMonth(),s2.getDate()));
+      ce=fmtDate(new Date(e2.getFullYear()-1,e2.getMonth(),e2.getDate()));
+    }else{
+      let cs2=new Date(s2);cs2.setDate(cs2.getDate()-days2);
+      let ce2=new Date(s2);ce2.setDate(ce2.getDate()-1);
+      cs=fmtDate(cs2);ce=fmtDate(ce2);
+    }
+  }
   let d=processTrafficAgg(s,e,shop,cs,ce);
   let k=d.kpi,ck=d.comp_kpi;
   let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
