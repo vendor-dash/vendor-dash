@@ -749,39 +749,51 @@ function processProductCat(start,end,shop,cat){
   };
 }
 
-// ===== 品类销售额趋势（单图，带移动均线）=====
+// ===== 品类销售额趋势（单图：本期 vs 前段等长区间）=====
 function processTrend(start,end,shop,cat,agg){
   let data=PRODUCT.rows;
+  let s_d=new Date(start),e_d=new Date(end);
+  let span=Math.round((e_d-s_d)/864e5)+1;
+  // 前段：往前推相同跨度（相同时间跨度）
+  let prevStartObj=new Date(s_d);prevStartObj.setDate(prevStartObj.getDate()-span);
+  let prevEndObj=new Date(s_d);prevEndObj.setDate(prevEndObj.getDate()-1);
+  let prevStart=fmtDate(prevStartObj),prevEnd=fmtDate(prevEndObj);
+
   let curr=_filtProduct(data,start,end,shop,cat);
-  let byDay={};
-  for(let r of curr){
-    let d=r[PI['日期']];if(!d)continue;
-    if(!byDay[d])byDay[d]={sales:0};
-    byDay[d].sales+=(r[PI['销售额']]||0);
-  }
-  let days=Object.keys(byDay).sort();
-  let labels=days,sales=days.map(d=>byDay[d].sales);
+  let prev=_filtProduct(data,prevStart,prevEnd,shop,cat);
+
+  function dayAgg(rows){let bd={};for(let r of rows){let d=r[PI['日期']];if(!d)continue;if(!bd[d])bd[d]={sales:0};bd[d].sales+=(r[PI['销售额']]||0);}return bd;}
+  let currDay=dayAgg(curr),prevDay=dayAgg(prev);
+
+  // 周归并辅助：取所在周的周一
+  function weekKey(d){let dt=new Date(d);let dow=(dt.getDay()+6)%7;let mon=new Date(dt);mon.setDate(dt.getDate()-dow);return fmtDate(mon);}
+
   if(agg==='week'){
-    let wk={};
-    for(let d of days){
-      let dt=new Date(d);
-      let dow=(dt.getDay()+6)%7; // 周一=0
-      let mon=new Date(dt);mon.setDate(dt.getDate()-dow);
-      let key=fmtDate(mon);
-      if(!wk[key])wk[key]={sales:0};
-      wk[key].sales+=byDay[d].sales;
+    function weekAgg(bd){let wk={};for(let d in bd){let k=weekKey(d);if(!wk[k])wk[k]={sales:0};wk[k].sales+=bd[d].sales;}return wk;}
+    currDay=weekAgg(currDay);prevDay=weekAgg(prevDay);
+    let wkStart=weekKey(prevStart),wkEnd=weekKey(end),wkStartCur=weekKey(start),wkEndCur=weekKey(end);
+    let labels=[],sales=[],prevSales=[];
+    let cur=new Date(wkStart),endT=new Date(wkEnd);
+    while(cur<=endT){
+      let k=fmtDate(cur);
+      labels.push(k);
+      sales.push((k>=wkStartCur&&k<=wkEndCur)?(currDay[k]?currDay[k].sales:0):null);
+      prevSales.push((k>=wkStart&&k<=weekKey(prevEnd))?(prevDay[k]?prevDay[k].sales:0):null);
+      cur.setDate(cur.getDate()+7);
     }
-    labels=Object.keys(wk).sort();
-    sales=labels.map(k=>wk[k].sales);
+    return{labels,sales,prevSales,agg,span,prevStart,prevEnd};
+  }else{
+    let labels=[],sales=[],prevSales=[];
+    let cur=new Date(prevStart),endT=new Date(end);
+    while(cur<=endT){
+      let k=fmtDate(cur);
+      labels.push(k);
+      sales.push((k>=start&&k<=end)?(currDay[k]?currDay[k].sales:0):null);
+      prevSales.push((k>=prevStart&&k<=prevEnd)?(prevDay[k]?prevDay[k].sales:0):null);
+      cur.setDate(cur.getDate()+1);
+    }
+    return{labels,sales,prevSales,agg,span,prevStart,prevEnd};
   }
-  let win=agg==='week'?4:7;
-  let ma=[];
-  for(let i=0;i<sales.length;i++){
-    if(i<win-1){ma.push(null);continue;}
-    let s=0;for(let j=i-win+1;j<=i;j++)s+=sales[j];
-    ma.push(s/win);
-  }
-  return{labels,sales,ma,agg};
 }
 
 function atrend(){
@@ -797,16 +809,20 @@ function atrend(){
     pCharts.trSales=safeChart('trSales',{
       type:'line',
       data:{labels:d.labels,datasets:[
-        {label:'销售额',data:d.sales,borderColor:'#1a237e',backgroundColor:'rgba(26,35,126,.08)',fill:true,tension:.3,pointRadius:2},
-        {label:(d.agg==='week'?'4周':'7日')+'移动平均',data:d.ma,borderColor:'#e53935',borderDash:[5,5],fill:false,tension:.3,pointRadius:0}
+        {label:'前段同期（'+d.prevStart+'~'+d.prevEnd+'）',data:d.prevSales,borderColor:'#fb8c00',backgroundColor:'rgba(251,140,0,.08)',fill:true,tension:.3,pointRadius:2,spanGaps:false},
+        {label:'本期（'+start+'~'+end+'）',data:d.sales,borderColor:'#1a237e',backgroundColor:'rgba(26,35,126,.08)',fill:true,tension:.3,pointRadius:2,spanGaps:false}
       ]},
       options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':fM(c.parsed.y))}}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}}}
     });
-    let maxV=-Infinity,maxI=0,minV=Infinity,minI=0;
-    d.sales.forEach((v,i)=>{if(v>maxV){maxV=v;maxI=i;}if(v>0&&v<minV){minV=v;minI=i;}});
-    let avg=d.sales.reduce((a,b)=>a+b,0)/d.sales.length;
-    let html='<div class="ana-block"><p>区间共 <b>'+d.labels.length+(d.agg==='week'?' 周':' 天')+'</b>，日均销售额 <b>'+fM(avg)+'</b>。';
-    html+='峰值出现在 <b>'+d.labels[maxI]+'</b>（'+fM(d.sales[maxI])+'），最低为 <b>'+d.labels[minI]+'</b>（'+fM(d.sales[minI])+'）。</p></div>';
+    let curVals=d.sales.filter(v=>v!=null),prevVals=d.prevSales.filter(v=>v!=null);
+    let curSum=curVals.reduce((a,b)=>a+b,0),prevSum=prevVals.reduce((a,b)=>a+b,0);
+    let curAvg=curVals.length?curSum/curVals.length:0,prevAvg=prevVals.length?prevSum/prevVals.length:0;
+    let chg=ch(curSum,prevSum);
+    let html='<div class="ana-block"><p>';
+    html+='本期（'+start+'~'+end+'，共 <b>'+d.span+' 天</b>）销售额合计 <b>'+fM(curSum)+'</b>，日均 <b>'+fM(curAvg)+'</b>；<br>';
+    html+='前段同期（'+d.prevStart+'~'+d.prevEnd+'，等长）合计 <b>'+fM(prevSum)+'</b>，日均 <b>'+fM(prevAvg)+'</b>。';
+    if(chg!=null)html+=' 变化 <span class="'+(cC(chg))+'">'+cA(chg)+' '+fP(Math.abs(chg))+'</span>。';
+    html+='</p></div>';
     document.getElementById('trana').innerHTML=html;
   }catch(e){
     document.getElementById('trana').innerHTML='<p style="color:#e53935">渲染出错：'+e.message+'</p>';
