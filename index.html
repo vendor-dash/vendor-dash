@@ -219,6 +219,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="sub-tab" onclick="ss('spu',this)">SPU分析</div>
 <div class="sub-tab" onclick="ss('top',this)">TOP30 SPU</div>
 <div class="sub-tab" onclick="ss('catana',this)">类目分析</div>
+<div class="sub-tab" onclick="ss('trend',this)">趋势分析</div>
 <div class="sub-tab" onclick="ss('shopcat',this)">店铺类目分析</div>
 <div class="sub-tab" onclick="ss('life',this)">生命周期分析</div>
 </div>
@@ -274,6 +275,20 @@ tr:hover td:first-child{background:#f5f7fa}
 </div>
 <div class="table-card"><div class="table-header"><div class="table-title" id="caTitle">类目销售分析（按渠道）</div><button class="ibtn o" onclick="caXLSX()">Excel</button></div><div class="table-wrap"><table><thead><tr id="cath"></tr></thead><tbody id="catb"></tbody></table></div></div>
 <div class="analysis-box"><h3>类目分析总结</h3><div class="analysis-content" id="caana"><p>请选择条件后点击查询。</p></div></div>
+</div>
+<!-- TREND ANALYSIS -->
+<div class="sub-content" id="sc-trend">
+<div class="filter-bar">
+<div class="fg"><label class="fl">开始日期</label><input type="date" id="trs" class="fi"></div>
+<div class="fg"><label class="fl">结束日期</label><input type="date" id="tre" class="fi"></div>
+<div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-trshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">类目</label><select id="trcat" class="fs"><option value="">全部类目</option></select></div>
+<div class="fg"><label class="fl">聚合</label><select id="tragg" class="fs"><option value="day">按天</option><option value="week">按周</option></select></div>
+<button class="btn btn-p" onclick="atrend()">查询</button>
+<button class="ibtn b" onclick="dc('trSales')">图片</button>
+</div>
+<div class="chart-card full"><div class="chart-header"><div class="chart-title">品类销售额趋势</div></div><div class="chart-body tall"><canvas id="trSales"></canvas></div></div>
+<div class="analysis-box"><h3>趋势分析总结</h3><div class="analysis-content" id="trana"><p>请选择条件后点击查询。</p></div></div>
 </div>
 <!-- SHOP-CAT ANALYSIS -->
 <div class="sub-content" id="sc-shopcat">
@@ -373,6 +388,7 @@ function ss(t,el){
   document.querySelectorAll('.sub-content').forEach(x=>x.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('sc-'+t).classList.add('active');
+  if(t==='trend'&&PRODUCT&&TRAFFIC){atrend();}
 }
 function tc(){let v=document.getElementById('tcmp').value;document.getElementById('tcc1').style.display=v==='custom'?'flex':'none';document.getElementById('tcc2').style.display=v==='custom'?'flex':'none';}
 function dc(cid){let c=document.getElementById(cid);let a=document.createElement('a');a.download=cid+'.png';a.href=c.toDataURL('image/png');a.click()}
@@ -433,12 +449,13 @@ async function initDashboard(d){
   if(typeof XLSX==='undefined'){console.error('XLSX not loaded');try{await new Promise(r=>setTimeout(r,2000));if(typeof XLSX==='undefined'){showLoad('⚠️ Excel库加载失败，请刷新重试');return;}}catch(e){return;}}
   let td=d.traffic_dates.sort(),pd=d.product_dates.sort();
   if(td.length){document.getElementById('ts').value=td[td.length-1];document.getElementById('te').value=td[td.length-1];}
-  if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas','scs'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae','sce'].forEach(id=>document.getElementById(id).value=mx);}
+  if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas','scs','trs'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae','sce','tre'].forEach(id=>document.getElementById(id).value=mx);}
   initMs('ms-tshop',d.traffic_shops);
   initMs('ms-cshop',d.product_shops);
   initMs('ms-sshop',d.product_shops);
   initMs('ms-tshop2',d.product_shops);
-  d.product_cats.forEach(s=>{['ccat','scat','tcat','cacat','scscat'].forEach(id=>{let o=document.createElement('option');o.value=s;o.text=s;document.getElementById(id).appendChild(o)})});
+  initMs('ms-trshop',d.product_shops);
+  d.product_cats.forEach(s=>{['ccat','scat','tcat','cacat','scscat','trcat'].forEach(id=>{let o=document.createElement('option');o.value=s;o.text=s;document.getElementById(id).appendChild(o)})});
   try{await atf();}catch(e){
     document.getElementById('tana').innerHTML='<div style="padding:20px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;margin:20px 0;"><h3 style="color:#e53935;margin:0 0 10px 0;">数据加载失败</h3><p style="margin:0;color:#333;">'+e.message+'</p></div>';
   }
@@ -730,6 +747,71 @@ function processProductCat(start,end,shop,cat){
     cats_qty_chart:cats_sorted.slice(0,15).map(c=>c_curr[c].qty),
     declining_cats
   };
+}
+
+// ===== 品类销售额趋势（单图，带移动均线）=====
+function processTrend(start,end,shop,cat,agg){
+  let data=PRODUCT.rows;
+  let curr=_filtProduct(data,start,end,shop,cat);
+  let byDay={};
+  for(let r of curr){
+    let d=r[PI['日期']];if(!d)continue;
+    if(!byDay[d])byDay[d]={sales:0};
+    byDay[d].sales+=(r[PI['销售额']]||0);
+  }
+  let days=Object.keys(byDay).sort();
+  let labels=days,sales=days.map(d=>byDay[d].sales);
+  if(agg==='week'){
+    let wk={};
+    for(let d of days){
+      let dt=new Date(d);
+      let dow=(dt.getDay()+6)%7; // 周一=0
+      let mon=new Date(dt);mon.setDate(dt.getDate()-dow);
+      let key=fmtDate(mon);
+      if(!wk[key])wk[key]={sales:0};
+      wk[key].sales+=byDay[d].sales;
+    }
+    labels=Object.keys(wk).sort();
+    sales=labels.map(k=>wk[k].sales);
+  }
+  let win=agg==='week'?4:7;
+  let ma=[];
+  for(let i=0;i<sales.length;i++){
+    if(i<win-1){ma.push(null);continue;}
+    let s=0;for(let j=i-win+1;j<=i;j++)s+=sales[j];
+    ma.push(s/win);
+  }
+  return{labels,sales,ma,agg};
+}
+
+function atrend(){
+  try{
+    let start=document.getElementById('trs').value;
+    let end=document.getElementById('tre').value;
+    let shop=getMsValue('ms-trshop');
+    let cat=document.getElementById('trcat').value;
+    let agg=document.getElementById('tragg').value;
+    if(!start||!end){document.getElementById('trana').innerHTML='<p>请先选择开始/结束日期</p>';return;}
+    let d=processTrend(start,end,shop,cat,agg);
+    safeDestroy(pCharts.trSales);
+    pCharts.trSales=safeChart('trSales',{
+      type:'line',
+      data:{labels:d.labels,datasets:[
+        {label:'销售额',data:d.sales,borderColor:'#1a237e',backgroundColor:'rgba(26,35,126,.08)',fill:true,tension:.3,pointRadius:2},
+        {label:(d.agg==='week'?'4周':'7日')+'移动平均',data:d.ma,borderColor:'#e53935',borderDash:[5,5],fill:false,tension:.3,pointRadius:0}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':fM(c.parsed.y))}}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}}}
+    });
+    let maxV=-Infinity,maxI=0,minV=Infinity,minI=0;
+    d.sales.forEach((v,i)=>{if(v>maxV){maxV=v;maxI=i;}if(v>0&&v<minV){minV=v;minI=i;}});
+    let avg=d.sales.reduce((a,b)=>a+b,0)/d.sales.length;
+    let html='<div class="ana-block"><p>区间共 <b>'+d.labels.length+(d.agg==='week'?' 周':' 天')+'</b>，日均销售额 <b>'+fM(avg)+'</b>。';
+    html+='峰值出现在 <b>'+d.labels[maxI]+'</b>（'+fM(d.sales[maxI])+'），最低为 <b>'+d.labels[minI]+'</b>（'+fM(d.sales[minI])+'）。</p></div>';
+    document.getElementById('trana').innerHTML=html;
+  }catch(e){
+    document.getElementById('trana').innerHTML='<p style="color:#e53935">渲染出错：'+e.message+'</p>';
+    console.error(e);
+  }
 }
 
 function processProductSpu(start,end,shop,cat,search){
