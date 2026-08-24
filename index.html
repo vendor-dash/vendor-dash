@@ -370,7 +370,7 @@ function decodeProduct(P){if(!P||!P.dictCols)return;const rows=P.rows;for(const 
 // Multi-select
 function toggleMs(el){let d=el.nextElementSibling;if(d.classList.contains('open')){d.classList.remove('open');}else{d.classList.add('open');document.addEventListener('click',function close(e){if(!el.parentElement.contains(e.target)){d.classList.remove('open');document.removeEventListener('click',close);}});}}
 function msAll(chk){let opts=chk.closest('.ms-dropdown').querySelector('.ms-options');opts.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=chk.checked);updateMsText(chk.closest('.ms-wrap'));}
-function updateMsText(wrap){let checked=wrap.querySelectorAll('.ms-options input[type=checkbox]');let arr=Array.from(checked).filter(c=>c.checked);let txt=wrap.querySelector('.ms-trigger');let label=wrap.dataset.label||'店铺';if(arr.length===0)txt.textContent='全部'+label;else if(arr.length===1)txt.textContent=arr[0].value;else txt.textContent='已选 '+arr.length+' 个'+label;}
+function updateMsText(wrap){let checked=wrap.querySelectorAll('.ms-options input[type=checkbox]');let arr=Array.from(checked).filter(c=>c.checked);let txt=wrap.querySelector('.ms-trigger');let label=wrap.dataset.label||'店铺';if(arr.length===0){txt.textContent='全部'+label;return;}let display=v=>{let c=typeof v==='string'?null:v;return c&&(c.dataset.display||c.value)||(typeof v==='string'?v:v.value);};if(arr.length===1){txt.textContent=display(arr[0]);return;}let special=arr.filter(c=>c.dataset.display);let normal=arr.filter(c=>!c.dataset.display);if(special.length>0){let s=special.map(display).join('、');txt.textContent=s+(normal.length?' + '+normal.length+' 个'+label:'');return;}txt.textContent='已选 '+arr.length+' 个'+label;}
 function getMsValue(id){let wrap=document.getElementById(id);return Array.from(wrap.querySelectorAll('.ms-options input:checked')).map(c=>c.value).join(',');}
 function initMs(id,options){let wrap=document.getElementById(id);let opts=wrap.querySelector('.ms-options');opts.innerHTML='';options.forEach(s=>{let lbl=document.createElement('label');lbl.innerHTML='<input type="checkbox" value="'+s+'" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> '+s;opts.appendChild(lbl);});wrap.querySelector('.ms-all').checked=false;updateMsText(wrap);}
 
@@ -455,6 +455,9 @@ async function initDashboard(d){
   initMs('ms-tshop2',d.product_shops);
   initMs('ms-trshop',d.product_shops);
   initMs('ms-trcat',d.product_cats);
+  // 趋势分析类目多选：顶部增加"全部类目（汇总）"选项，用于显式查看全部类目总和趋势
+  let trcatOpts=document.querySelector('#ms-trcat .ms-options');
+  if(trcatOpts){let allOpt=document.createElement('label');allOpt.className='ms-total-opt';allOpt.innerHTML='<input type="checkbox" value="__ALL_CATS__" data-display="全部类目（汇总）" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> 全部类目（汇总）';trcatOpts.insertBefore(allOpt,trcatOpts.firstChild);}
   d.product_cats.forEach(s=>{['ccat','scat','tcat','cacat','scscat'].forEach(id=>{let o=document.createElement('option');o.value=s;o.text=s;document.getElementById(id).appendChild(o)})});
   try{await atf();}catch(e){
     document.getElementById('tana').innerHTML='<div style="padding:20px;background:#fff3f3;border:1px solid #e53935;border-radius:8px;margin:20px 0;"><h3 style="color:#e53935;margin:0 0 10px 0;">数据加载失败</h3><p style="margin:0;color:#333;">'+e.message+'</p></div>';
@@ -753,8 +756,9 @@ function processProductCat(start,end,shop,cat){
 function processTrend(start,end,shop,cats){
   let data=PRODUCT.rows;
   let s_d=new Date(start),e_d=new Date(end);
-  // 未选类目时展示全部汇总
-  let catList=cats?cats.split(',').map(x=>x.trim()).filter(Boolean):[];
+  let catList=(cats?cats.split(',').map(x=>x.trim()).filter(Boolean):[]);
+  let showAll=catList.includes('__ALL_CATS__');
+  let realCats=catList.filter(x=>x!=='__ALL_CATS__');
   // 先按日期+店铺过滤（不过滤品类），再按类目聚合
   let rows=_filtProduct(data,start,end,shop,'');
   let byDayCat={};
@@ -768,17 +772,22 @@ function processTrend(start,end,shop,cats){
   let labels=[];
   let cur=new Date(s_d);
   while(cur<=e_d){labels.push(fmtDate(cur));cur.setDate(cur.getDate()+1);}
-  // 如果未选类目：返回一条"全部类目"汇总线
-  if(!catList.length){
-    let sales=labels.map(k=>{let m=byDayCat[k];return m?Object.values(m).reduce((a,b)=>a+b,0):0;});
-    return{labels,series:[{name:'全部类目',sales}],start,end};
+  // 计算全部类目汇总（所有品类每日相加）
+  let allTotal=labels.map(k=>{let m=byDayCat[k];return m?Object.values(m).reduce((a,b)=>a+b,0):0;});
+  // 如果未选任何类目或只选了汇总：返回一条"全部类目（汇总）"线
+  if(!realCats.length){
+    return{labels,series:[{name:'全部类目（汇总）',sales:allTotal,isTotal:true}],start,end};
   }
   // 否则每个选中类目一条线
-  let series=catList.map(c=>({name:c,sales:labels.map(k=>{let m=byDayCat[k];return m&&m[c]?m[c]:0;})}));
-  // 选中多个类目时，额外加一条"已选类目汇总"线（所选类目每日相加）
-  if(catList.length>=2){
-    let total=labels.map((k,i)=>series.reduce((a,s)=>a+s.sales[i],0));
-    series.push({name:'已选类目汇总',sales:total,isTotal:true});
+  let series=realCats.map(c=>({name:c,sales:labels.map(k=>{let m=byDayCat[k];return m&&m[c]?m[c]:0;})}));
+  // 选中多个真实类目时，加"已选类目汇总"线（所选类目每日相加）
+  if(realCats.length>=2){
+    let selectedTotal=labels.map((k,i)=>series.reduce((a,s)=>a+s.sales[i],0));
+    series.push({name:'已选类目汇总',sales:selectedTotal,isTotal:true});
+  }
+  // 如果显式勾选了"全部类目（汇总）"，再加一条全部总和线
+  if(showAll){
+    series.push({name:'全部类目（汇总）',sales:allTotal,isTotal:true});
   }
   return{labels,series,start,end};
 }
