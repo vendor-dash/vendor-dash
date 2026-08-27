@@ -2239,7 +2239,7 @@ function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
     return {groups,totalQty,totalSales,dayCount:days.size};
   }
   let A=agg(aStart,aEnd), B=agg(bStart,bEnd);
-  let order=['成熟期','翻单期','未翻单期','淘汰期-老','淘汰期-新','下市期'];
+  let order=['成熟期','翻单期','未翻单期','淘汰期 - 老品','淘汰期 - 新品','下市期'];
   let rows=[];
   for(let stage of order){
     let a=A.groups[stage]||{qty:0,sales:0,days:new Set()};
