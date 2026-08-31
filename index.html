@@ -2269,14 +2269,15 @@ function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
   document.getElementById('lcTitle').textContent=`产品生命周期对比（${aStart}~${aEnd} vs ${bStart}~${bEnd}）`;
   let aR=`${aStart.slice(5)}~${aEnd.slice(5)}`,bR=`${bStart.slice(5)}~${bEnd.slice(5)}`;
   // 表头分组行显示时间段
-  document.getElementById('lcRangeRow').innerHTML=`<th>生命周期</th><th colspan="5">A段 (${aR})</th><th colspan="5">B段 (${bR})</th><th colspan="3">对比</th>`;
+  document.getElementById('lcRangeRow').innerHTML=`<th>生命周期</th><th colspan="5">A段 (${aR})</th><th colspan="5">B段 (${bR})</th><th colspan="4">对比</th>`;
   // 简洁指标行
-  document.getElementById('lcth').innerHTML='<th>生命周期</th><th>A段销量</th><th>A段销额</th><th>A段占比</th><th>A段日均销量</th><th>A段日均销额</th><th>B段销量</th><th>B段销额</th><th>B段占比</th><th>B段日均销量</th><th>B段日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th>';
+  document.getElementById('lcth').innerHTML='<th>生命周期</th><th>A段销量</th><th>A段销额</th><th>A段占比</th><th>A段日均销量</th><th>A段日均销额</th><th>B段销量</th><th>B段销额</th><th>B段占比</th><th>B段日均销量</th><th>B段日均销额</th><th>占比波动</th><th>环比日均销量</th><th>环比日均销额</th><th>销售额环比</th>';
   let html='';
   rows.forEach(row=>{
     let shareDiff=row.bShare-row.aShare;
     let qtyMom=row.aAvgQty>0?(row.bAvgQty-row.aAvgQty)/row.aAvgQty:null;
     let salesMom=row.aAvgSales>0?(row.bAvgSales-row.aAvgSales)/row.aAvgSales:null;
+    let salesTotalMom=row.aSales>0?(row.bSales-row.aSales)/row.aSales:null;
     let trStyle=row.isTotal?' style="font-weight:700;background:#f5f7fa"':'';
     html+=`<tr${trStyle}><td>${row.stage}</td>
       <td>${fN(row.aQty)}</td><td>${fM(row.aSales)}</td><td>${fP(row.aShare)}</td><td>${fN(row.aAvgQty,1)}</td><td>${fM(row.aAvgSales)}</td>
@@ -2284,9 +2285,10 @@ function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
       <td class="${cC(shareDiff)}">${cA(shareDiff)}${fP(Math.abs(shareDiff))}</td>
       <td class="${cC(qtyMom)}">${cA(qtyMom)}${qtyMom!==null?fP(Math.abs(qtyMom)):'-'}</td>
       <td class="${cC(salesMom)}">${cA(salesMom)}${salesMom!==null?fP(Math.abs(salesMom)):'-'}</td>
+      <td class="${cC(salesTotalMom)}">${cA(salesTotalMom)}${salesTotalMom!==null?fP(Math.abs(salesTotalMom)):'-'}</td>
     </tr>`;
   });
-  document.getElementById('lctb').innerHTML=html||'<tr><td colspan="14" class="empty-state">无数据</td></tr>';
+  document.getElementById('lctb').innerHTML=html||'<tr><td colspan="15" class="empty-state">无数据</td></tr>';
 }
 
 async function alc(){
@@ -2318,7 +2320,7 @@ function lcXLSX(){
   let rows=[rangeRow,heads];
   document.querySelectorAll('#lctb tr').forEach(tr=>{
     let tds=tr.querySelectorAll('td');
-    if(tds.length>=14) rows.push(Array.from(tds).map(td=>td.textContent.trim()));
+    if(tds.length>=15) rows.push(Array.from(tds).map(td=>td.textContent.trim()));
   });
   let ws=XLSX.utils.aoa_to_sheet(rows);
   ws['!merges']=merges;
