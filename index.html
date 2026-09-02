@@ -532,21 +532,33 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
   let p_sales=p_curr.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
   let p_qty=p_curr.reduce((s,r)=>s+(r[PI['销量']]||0),0);
 
-  // Aggregate by date
-  function aggByDate(rows){
+  // Aggregate by date：以 PRODUCT 的销售额/销量为准，缺 PRODUCT 的日期 fallback 到流量数据
+  function aggByDate(trafficRows, productRows, start, end){
     let bd={};
-    for(let r of rows){
+    function init(d){if(!bd[d])bd[d]={pUV:null,sUV:null,sales:0,qty:0,cvr:0,cn:0,hasPuv:false,hasSuv:false,hasSales:false,hasQty:false};}
+    if(productRows){
+      for(let r of productRows){
+        let d=r[PI['日期']];
+        if(!d||d<start||d>end)continue;
+        init(d);
+        bd[d].sales+=r[PI['销售额']]||0;
+        bd[d].qty+=r[PI['销量']]||0;
+        bd[d].hasSales=true;bd[d].hasQty=true;
+      }
+    }
+    for(let r of trafficRows){
       let d=r[TI['日期']];
-      if(!bd[d])bd[d]={pUV:null,sUV:null,sales:0,qty:0,cvr:0,cn:0,hasPuv:false,hasSuv:false};
+      if(!d)continue;
+      init(d);
       let puv=r[TI['平台UV']];if(puv!=null){bd[d].pUV=Math.max(bd[d].pUV||0,puv);bd[d].hasPuv=true;}
       let suv=r[TI['店铺UV']];if(suv!=null){bd[d].sUV=(bd[d].sUV||0)+suv;bd[d].hasSuv=true;}
-      bd[d].sales+=r[TI['销售额']]||0;
-      bd[d].qty+=r[TI['销量']]||0;
+      if(!bd[d].hasSales)bd[d].sales+=r[TI['销售额']]||0;
+      if(!bd[d].hasQty)bd[d].qty+=r[TI['销量']]||0;
       let cvr=r[TI['转化率']];if(cvr!=null){bd[d].cvr+=cvr;bd[d].cn++;}
     }
     return bd;
   }
-  let bd=aggByDate(curr);
+  let bd=aggByDate(curr, p_curr, start, end);
   let dates=Object.keys(bd).sort();
   let puv=dates.map(d=>bd[d].hasPuv?bd[d].pUV:null);
   let suv=dates.map(d=>bd[d].hasSuv?bd[d].sUV:null);
@@ -557,8 +569,10 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
   let cd_data={dates:[],sales:[],puv:[],suv:[],cvr:[],qty:[]};
   let ckp=null;
   if(comp_start&&comp_end){
-    if(comp.length){
-      let cd=aggByDate(comp);
+    // 订单对比期销售额/销量：基于 PRODUCT 数据，不依赖流量；Vendor 店铺自动合并 Seller
+    let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,p_shop,null);
+    let cd=aggByDate(comp, p_comp, comp_start, comp_end);
+    if(Object.keys(cd).length){
       let cdates=Object.keys(cd).sort();
       cd_data={
         dates:cdates,
@@ -571,8 +585,6 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
     }
     let cpUV_days=cd_data.puv.filter(v=>v!=null).length;
     let csUV_days=cd_data.suv.filter(v=>v!=null).length;
-    // 订单对比期销售额/销量：基于 PRODUCT 数据，不依赖流量；Vendor 店铺自动合并 Seller
-    let p_comp=_filtProduct(PRODUCT.rows,comp_start,comp_end,p_shop,null);
     let p_comp_sales=p_comp.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
     let p_comp_qty=p_comp.reduce((s,r)=>s+(r[PI['销量']]||0),0);
     ckp={
@@ -607,7 +619,7 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end){
       let s_d=new Date(start);
       let month_start=start.substring(0,8)+'01';
       let detail_all=_filtTraffic(data,month_start,end,shop);
-      let dbd=aggByDate(detail_all);
+      let dbd=aggByDate(detail_all, null, month_start, end);
       for(let d of Object.keys(dbd).sort()){
         let dd=dbd[d];
         detail.push({
