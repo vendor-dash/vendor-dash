@@ -244,6 +244,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="see" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-sshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">类目</label><select id="scat" class="fs"><option value="">全部类目</option></select></div>
+<div class="fg"><label class="fl">销售等级</label><div class="ms-wrap" id="ms-stier"><div class="ms-trigger" onclick="toggleMs(this)">全部等级</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">搜索SPU</label><input type="text" id="ssch" class="search-box" placeholder="输入SPU编码..."></div>
 <button class="btn btn-p" onclick="as()">查询</button>
 <button class="ibtn o" onclick="dsXLSX()">Excel</button>
@@ -433,6 +434,7 @@ async function loadData(){
       product_dates:[...new Set(PRODUCT.rows.map(r=>r[PI['日期']]).filter(x=>x))].sort(),
       product_shops:[...new Set(PRODUCT.rows.map(r=>r[PI['店铺']]).filter(x=>x))].sort(),
       product_cats:[...new Set(PRODUCT.rows.map(r=>r[PI['品类']]).filter(x=>x))].sort(),
+      product_tiers:PI['销售等级']!==undefined?[...new Set(PRODUCT.rows.map(r=>r[PI['销售等级']]).filter(x=>x))].sort():[],
     };
     setProgress(100);
     await initDashboard(info);
@@ -452,6 +454,7 @@ async function initDashboard(d){
   initMs('ms-tshop',d.traffic_shops);
   initMs('ms-cshop',d.product_shops);
   initMs('ms-sshop',d.product_shops);
+  if(d.product_tiers&&d.product_tiers.length)initMs('ms-stier',d.product_tiers);
   initMs('ms-tshop2',d.product_shops);
   initMs('ms-trshop',d.product_shops);
   initMs('ms-trcat',d.product_cats);
@@ -843,7 +846,7 @@ function atrend(){
   }
 }
 
-function processProductSpu(start,end,shop,cat,search){
+function processProductSpu(start,end,shop,cat,search,tiers){
   let data=PRODUCT.rows;
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
@@ -856,6 +859,12 @@ function processProductSpu(start,end,shop,cat,search){
   let yoy=_filtProduct(data,yoy_s,yoy_e,shop,cat);
 
   let curr=_filtProduct(data,start,end,shop,cat);
+
+  // 销售等级过滤（爆品/热销品/平销品/滞销品...），三个周期同步过滤保证对比口径一致
+  if(tiers&&tiers.length&&PI['销售等级']!==undefined){
+    let tf=r=>tiers.includes(r[PI['销售等级']]);
+    mom=mom.filter(tf);yoy=yoy.filter(tf);curr=curr.filter(tf);
+  }
 
   function bySpu(d){
     let bs={};
@@ -1844,10 +1853,22 @@ function exportReport(type){
 }
 
 // ====== SPU RENDER ======
+// SPU 卡片内嵌阈值输入变更（kind: up/down），留空或非法恢复默认30
+function spuThChange(kind,v){
+  let n=parseFloat(v);
+  if(!isFinite(n)||n<=0)n=30;
+  if(n>99)n=99;
+  if(kind==='up')window._spuThUp=n/100;else window._spuThDown=n/100;
+  as();
+}
 async function as(){
   let s=document.getElementById('sss').value,e=document.getElementById('see').value,shop=getMsValue('ms-sshop'),cat=document.getElementById('scat').value,sch=document.getElementById('ssch').value;
+  let tierRaw=getMsValue('ms-stier');
+  let tiers=tierRaw?tierRaw.split(',').map(x=>x.trim()).filter(Boolean):[];
   if(!s||!e){alert('请选择日期');return}
-  let d=processProductSpu(s,e,shop,cat,sch);
+  if(window._spuThUp==null)window._spuThUp=0.3;
+  if(window._spuThDown==null)window._spuThDown=0.3;
+  let d=processProductSpu(s,e,shop,cat,sch,tiers);
   // 列定义（用于表头渲染 + 列显隐控制）
   window._spuColDefs=[];
   function addCol(group,label){window._spuColDefs.push({g:group,l:label});return label;}
@@ -1896,16 +1917,70 @@ async function as(){
   });
   ana+='</table></div>';
 
-  // Growth SPU discovery
+  // Growth SPU discovery（卡片式，阈值可内嵌填写）
   if(d.spu_list.length>5){
-    let growers=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom>0.3&&v.sales>1000);
-    if(growers.length)ana+='<div class="ana-block"><h4>🔥 高速增长SPU（环比>30%）</h4><p>'+growers.slice(0,8).map(v=>v.spu+' <span class="up">↑'+fP(v.sales_mom)+'</span>（'+fM(v.sales)+'）').join(' | ')+(growers.length>8?' 等共'+growers.length+'个':'')+'</p><p style="color:#666;font-size:12px">这些SPU增长势头好，建议增加广告预算放大效果。</p></div>';
+    let thUpPct=Math.round(window._spuThUp*100),thDownPct=Math.round(window._spuThDown*100);
+    let growers=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom>=window._spuThUp&&v.sales>1000)
+      .sort((a,b)=>(b.sales-(b.mom_sales||0))-(a.sales-(a.mom_sales||0)));
+    if(growers.length){
+      ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 高速增长SPU（环比 ≥ <input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thUpPct+'" min="1" max="99" step="1" onchange="spuThChange(\'up\',this.value)" title="默认30，留空恢复默认"> %，共 '+growers.length+' 个）</h4>';
+      ana+='<table class="vol-table vol-up"><thead><tr><th>SPU</th><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利率</th><th>增量贡献</th></tr></thead><tbody>';
+      growers.slice(0,15).forEach(v=>{
+        let delta=v.sales-(v.mom_sales||0);
+        ana+='<tr>';
+        ana+='<td style="font-weight:700;color:#1b5e20;">'+v.spu+'</td>';
+        ana+='<td style="font-size:12px;">'+v.category+'</td>';
+        ana+='<td style="color:#2e7d32;font-weight:800;white-space:nowrap;">▲ +'+fP(v.sales_mom)+'</td>';
+        ana+='<td style="color:#666;font-size:12px;">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
+        ana+='<td>'+fP(v.margin)+'</td>';
+        ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;">+'+fM(delta)+'</td>';
+        ana+='</tr>';
+      });
+      ana+='</tbody></table>';
+      if(growers.length>15)ana+='<p style="font-size:12px;color:#666;margin:6px 0 0;">仅展示增量 TOP15，共 '+growers.length+' 个。</p>';
+      ana+='<p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 这些SPU增长势头好，建议增加广告预算放大效果。</p></div>';
+    }
 
-    let decliners=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom<-0.3&&v.sales>500);
-    if(decliners.length)ana+='<div class="ana-block"><h4>⚠ 快速下滑SPU（环比<-30%）</h4><p>'+decliners.slice(0,8).map(v=>v.spu+' <span class="down">↓'+fP(Math.abs(v.sales_mom))+'</span>（'+fM(v.sales)+'）').join(' | ')+(decliners.length>8?' 等共'+decliners.length+'个':'')+'</p><p style="color:#666;font-size:12px">需排查原因：差评影响？竞品降价？Listing权重下降？</p></div>';
+    let decliners=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom<=-window._spuThDown&&v.sales>500)
+      .sort((a,b)=>(a.sales-(a.mom_sales||0))-(b.sales-(b.mom_sales||0)));
+    if(decliners.length){
+      ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 快速下滑SPU（环比 ≤ -<input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thDownPct+'" min="1" max="99" step="1" onchange="spuThChange(\'down\',this.value)" title="默认30，留空恢复默认"> %，共 '+decliners.length+' 个）</h4>';
+      ana+='<table class="vol-table vol-down"><thead><tr><th>SPU</th><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利率</th><th>减量影响</th></tr></thead><tbody>';
+      decliners.slice(0,15).forEach(v=>{
+        let delta=v.sales-(v.mom_sales||0);
+        ana+='<tr>';
+        ana+='<td style="font-weight:700;color:#b71c1c;">'+v.spu+'</td>';
+        ana+='<td style="font-size:12px;">'+v.category+'</td>';
+        ana+='<td style="color:#c62828;font-weight:800;white-space:nowrap;">▼ '+fP(v.sales_mom)+'</td>';
+        ana+='<td style="color:#666;font-size:12px;">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
+        ana+='<td>'+fP(v.margin)+'</td>';
+        ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;">'+fM(delta)+'</td>';
+        ana+='</tr>';
+      });
+      ana+='</tbody></table>';
+      if(decliners.length>15)ana+='<p style="font-size:12px;color:#666;margin:6px 0 0;">仅展示减量 TOP15，共 '+decliners.length+' 个。</p>';
+      ana+='<p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 需排查原因：差评影响？竞品降价？Listing权重下降？</p></div>';
+    }
 
     let newbies=d.spu_list.filter(v=>v.sales_yoy===null||v.yoy_qty===0);
-    if(newbies.length>0)ana+='<div class="ana-block"><h4>🆕 新上架SPU（去年同期无销售）</h4><p>共 '+newbies.length+' 个：'+newbies.slice(0,5).map(v=>v.spu+'（'+fM(v.sales)+'）').join('、')+(newbies.length>5?' 等':'')+'。关注新品表现，及时优化Listing。</p></div>';
+    if(newbies.length>0){
+      let nb=newbies.slice().sort((a,b)=>b.sales-a.sales);
+      ana+='<div class="ana-block" style="border-left:5px solid #1565c0;background:#f3f8ff;"><h4 style="margin-bottom:8px;">🆕 新上架SPU（去年同期无销售，共 '+newbies.length+' 个）</h4>';
+      ana+='<table class="vol-table"><thead><tr><th>SPU</th><th>品类</th><th>本期销售额</th><th>本期销量</th><th>毛利率</th></tr></thead><tbody>';
+      nb.slice(0,15).forEach(v=>{
+        ana+='<tr>';
+        ana+='<td style="font-weight:700;color:#0d47a1;">'+v.spu+'</td>';
+        ana+='<td style="font-size:12px;">'+v.category+'</td>';
+        ana+='<td style="font-weight:600;">'+fM(v.sales)+'</td>';
+        ana+='<td>'+fN(v.qty)+'</td>';
+        ana+='<td>'+fP(v.margin)+'</td>';
+        ana+='</tr>';
+      });
+      ana+='</tbody></table>';
+      if(nb.length>15)ana+='<p style="font-size:12px;color:#666;margin:6px 0 0;">仅展示销售额 TOP15，共 '+nb.length+' 个。关注新品表现，及时优化Listing。</p>';
+      else ana+='<p style="font-size:12px;color:#1565c0;background:#e3f2fd;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">🆕 关注新品表现，及时优化Listing。</p>';
+      ana+='</div>';
+    }
   }
   document.getElementById('sana').innerHTML=ana;
 }
