@@ -244,7 +244,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="see" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-sshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">类目</label><select id="scat" class="fs"><option value="">全部类目</option></select></div>
-<div class="fg"><label class="fl">销售等级</label><div class="ms-wrap" id="ms-stier"><div class="ms-trigger" onclick="toggleMs(this)">全部等级</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">销售等级</label><div class="ms-wrap" id="ms-stier" data-label="等级"><div class="ms-trigger" onclick="toggleMs(this)">全部等级</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">搜索SPU</label><input type="text" id="ssch" class="search-box" placeholder="输入SPU编码..."></div>
 <button class="btn btn-p" onclick="as()">查询</button>
 <button class="ibtn o" onclick="dsXLSX()">Excel</button>
@@ -1922,8 +1922,11 @@ async function as(){
     let thUpPct=Math.round(window._spuThUp*100),thDownPct=Math.round(window._spuThDown*100);
     let growers=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom>=window._spuThUp&&v.sales>1000)
       .sort((a,b)=>(b.sales-(b.mom_sales||0))-(a.sales-(a.mom_sales||0)));
-    if(growers.length){
+    {
       ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 高速增长SPU（环比 ≥ <input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thUpPct+'" min="1" max="99" step="1" onchange="spuThChange(\'up\',this.value)" title="默认30，留空恢复默认"> %，共 '+growers.length+' 个）</h4>';
+      if(growers.length===0){
+        ana+='<p style="font-size:12px;color:#666;background:#fff;padding:8px 10px;border-radius:6px;margin:0;">当前阈值下无符合条件的SPU，可调低上方百分比后自动刷新。</p></div>';
+      }else{
       ana+='<table class="vol-table vol-up"><thead><tr><th>SPU</th><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利率</th><th>增量贡献</th></tr></thead><tbody>';
       growers.slice(0,15).forEach(v=>{
         let delta=v.sales-(v.mom_sales||0);
@@ -1938,13 +1941,18 @@ async function as(){
       });
       ana+='</tbody></table>';
       if(growers.length>15)ana+='<p style="font-size:12px;color:#666;margin:6px 0 0;">仅展示增量 TOP15，共 '+growers.length+' 个。</p>';
-      ana+='<p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 这些SPU增长势头好，建议增加广告预算放大效果。</p></div>';
+      ana+='<p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 这些SPU增长势头好，建议增加广告预算放大效果。</p>';
+      }
+      ana+='</div>';
     }
 
     let decliners=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom<=-window._spuThDown&&v.sales>500)
       .sort((a,b)=>(a.sales-(a.mom_sales||0))-(b.sales-(b.mom_sales||0)));
-    if(decliners.length){
+    {
       ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 快速下滑SPU（环比 ≤ -<input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thDownPct+'" min="1" max="99" step="1" onchange="spuThChange(\'down\',this.value)" title="默认30，留空恢复默认"> %，共 '+decliners.length+' 个）</h4>';
+      if(decliners.length===0){
+        ana+='<p style="font-size:12px;color:#666;background:#fff;padding:8px 10px;border-radius:6px;margin:0;">当前阈值下无符合条件的SPU，可调低上方百分比后自动刷新。</p></div>';
+      }else{
       ana+='<table class="vol-table vol-down"><thead><tr><th>SPU</th><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利率</th><th>减量影响</th></tr></thead><tbody>';
       decliners.slice(0,15).forEach(v=>{
         let delta=v.sales-(v.mom_sales||0);
@@ -1959,13 +1967,18 @@ async function as(){
       });
       ana+='</tbody></table>';
       if(decliners.length>15)ana+='<p style="font-size:12px;color:#666;margin:6px 0 0;">仅展示减量 TOP15，共 '+decliners.length+' 个。</p>';
-      ana+='<p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 需排查原因：差评影响？竞品降价？Listing权重下降？</p></div>';
+      ana+='<p style="font-size:12px;color:#c62828;background:#ffebee;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📉 需排查原因：差评影响？竞品降价？Listing权重下降？</p>';
+      }
+      ana+='</div>';
     }
 
     let newbies=d.spu_list.filter(v=>v.sales_yoy===null||v.yoy_qty===0);
     if(newbies.length>0){
       let nb=newbies.slice().sort((a,b)=>b.sales-a.sales);
+      let nbSales=nb.reduce((s,v)=>s+v.sales,0),nbQty=nb.reduce((s,v)=>s+v.qty,0);
+      let nbShare=d.total_sales>0?nbSales/d.total_sales:0;
       ana+='<div class="ana-block" style="border-left:5px solid #1565c0;background:#f3f8ff;"><h4 style="margin-bottom:8px;">🆕 新上架SPU（去年同期无销售，共 '+newbies.length+' 个）</h4>';
+      ana+='<p style="font-size:13px;font-weight:700;color:#0d47a1;background:#e3f2fd;padding:6px 10px;border-radius:6px;margin:0 0 8px;">💰 本期合计带来销售额 <b>'+fM(nbSales)+'</b>（占总销售额 '+fP(nbShare)+'），销量 '+fN(nbQty)+'。</p>';
       ana+='<table class="vol-table"><thead><tr><th>SPU</th><th>品类</th><th>本期销售额</th><th>本期销量</th><th>毛利率</th></tr></thead><tbody>';
       nb.slice(0,15).forEach(v=>{
         ana+='<tr>';
