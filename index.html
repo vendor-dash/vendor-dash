@@ -230,6 +230,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="ce" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-cshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">类目</label><select id="ccat" class="fs"><option value="">全部类目</option></select></div>
+<div class="fg"><label class="fl">环比阈值%</label><input type="number" id="cmth" class="fi" style="width:86px" value="30" min="1" max="99" step="1" onchange="ac()" title="潜力/风险品类卡片的环比判断阈值，默认30，留空或清空恢复默认"></div>
 <button class="btn btn-p" onclick="ac()">查询</button>
 <button class="ibtn o" onclick="dcXLSX()">Excel</button>
 </div>
@@ -1475,6 +1476,12 @@ function colToggleAll(panelId,totalCols,checked){
 async function ac(){
   let s=document.getElementById('cs').value,e=document.getElementById('ce').value,shop=getMsValue('ms-cshop'),cat=document.getElementById('ccat').value;
   if(!s||!e){alert('请选择日期');return}
+  // 环比阈值%（潜力/风险品类卡片），默认30
+  let thIn=parseFloat(document.getElementById('cmth')?document.getElementById('cmth').value:'');
+  if(!isFinite(thIn)||thIn<=0)thIn=30;
+  if(thIn>99)thIn=99;
+  window._momTh=thIn/100;
+  let momThPct=Math.round(thIn);
   let d=processProductCat(s,e,shop,cat);
   window._lastCatCtx={s,e,shop,cat};window._lastCatData=d;
   let ctitle=document.getElementById('ctitle');
@@ -1600,9 +1607,9 @@ async function ac(){
   });
   ana+='</table></div>';
 
-  // ③ 环比 ±30% 波动醒目卡片（含增量/减量金额 + TOP SPU）
+  // ③ 环比 ±阈值 波动醒目卡片（含增量/减量金额 + TOP SPU）
   let bigUp=[],bigDown=[];
-  d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=0.3)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-0.3)bigDown.push(c);});
+  d.cat_list.forEach(c=>{if(c.sales_mom!==null&&c.sales_mom>=window._momTh)bigUp.push(c);if(c.sales_mom!==null&&c.sales_mom<=-window._momTh)bigDown.push(c);});
   // 辅助：获取某品类下TOP SPU贡献者（本期-上期销售额差）
   // 取某品类下TOP贡献/拖累SPU（按基础SPU聚合，与SPU分析页一致）
   function getTopSpuForCat(catName,isUp){
@@ -1633,7 +1640,7 @@ async function ac(){
   // 计算总增减量用于汇总
   let totalUpDelta=0,totalDownDelta=0;
   if(bigUp.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 环比增长超 30% 的潜力品类（'+bigUp.length+' 个）</h4>';
+    ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 环比增长超 '+momThPct+'% 的潜力品类（'+bigUp.length+' 个）</h4>';
     ana+='<table class="vol-table vol-up"><thead><tr><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利</th><th>增量贡献</th><th>🏆 起量TOP SPU</th></tr></thead><tbody>';
     bigUp.forEach(c=>{
       let delta=c.sales-(c.mom_sales||0);
@@ -1653,7 +1660,7 @@ async function ac(){
     ana+='<p style="font-size:12px;color:#2e7d32;background:#e8f5e9;padding:6px 10px;border-radius:6px;margin:8px 0 0;font-weight:600;">📈 以上 '+bigUp.length+' 个品类合计带来 <b>+'+fM(totalUpDelta)+'</b> 销售额增量，是本期增长的主要引擎。建议加大广告预算、扩充 SKU 放大效果。</p></div>';
   }
   if(bigDown.length>0){
-    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 环比下降超 30% 的风险品类（'+bigDown.length+' 个）</h4>';
+    ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 环比下降超 '+momThPct+'% 的风险品类（'+bigDown.length+' 个）</h4>';
     ana+='<table class="vol-table vol-down"><thead><tr><th>品类</th><th>环比</th><th>上期→本期</th><th>毛利</th><th>减量影响</th><th>原因研判</th><th>⚠ 拖累TOP SPU</th></tr></thead><tbody>';
     bigDown.forEach(c=>{
       let delta=c.sales-(c.mom_sales||0);
@@ -1757,30 +1764,32 @@ function genReport(){
   L.push('本期总销售额 **'+fM(d.total_sales)+'**，环比 '+arrow(momCh)+'（上一周期 '+fM(d.mom_sales)+'），同比 '+arrow(yoyCh)+'（去年同期 '+fM(d.yoy_sales)+'）。');
   L.push('整体毛利率 '+fP(d.total_margin)+'（环比 '+sp(mCh)+'）。');L.push('');
   // 二、增长
-  let bigUp=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom>=0.3);
+  if(window._momTh==null)window._momTh=0.3;
+  let repThPct=Math.round(window._momTh*100);
+  let bigUp=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom>=window._momTh);
   let upDelta=0;bigUp.forEach(c=>{upDelta+=c.sales-(c.mom_sales||0);});
   L.push('## 二、增长亮点（起量品类）');L.push('');
   if(bigUp.length>0){
-    L.push('本期共 **'+bigUp.length+'** 个品类环比增幅超 30%，合计带来 **+'+fM(upDelta)+'** 销售额增量，是本期增长的主要引擎：');L.push('');
+    L.push('本期共 **'+bigUp.length+'** 个品类环比增幅超 '+repThPct+'%，合计带来 **+'+fM(upDelta)+'** 销售额增量，是本期增长的主要引擎：');L.push('');
     bigUp.slice().sort((a,b)=>(b.sales-(b.mom_sales||0))-(a.sales-(a.mom_sales||0))).forEach((c,i)=>{
       let delta=c.sales-(c.mom_sales||0);
       L.push((i+1)+'. **'+c.name+'**：环比 '+sp(c.sales_mom)+'，本期 '+fM(c.sales)+'（上期 '+fM(c.mom_sales||0)+'），增量 **+'+fM(delta)+'**，毛利率 '+fP(c.margin)+'。');
     });
-  }else{L.push('本期无环比增幅超 30% 的爆发式增长品类。');}
+  }else{L.push('本期无环比增幅超 '+repThPct+'% 的爆发式增长品类。');}
   L.push('');
   // 三、风险
-  let bigDown=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom<=-0.3);
+  let bigDown=d.cat_list.filter(c=>c.sales_mom!=null&&c.sales_mom<=-window._momTh);
   let downDelta=0;bigDown.forEach(c=>{downDelta+=c.sales-(c.mom_sales||0);});
   L.push('## 三、风险预警（掉量品类）');L.push('');
   if(bigDown.length>0){
-    L.push('本期共 **'+bigDown.length+'** 个品类环比降幅超 30%，合计拖累 **'+fM(downDelta)+'** 销售额：');L.push('');
+    L.push('本期共 **'+bigDown.length+'** 个品类环比降幅超 '+repThPct+'%，合计拖累 **'+fM(downDelta)+'** 销售额：');L.push('');
     bigDown.slice().sort((a,b)=>(a.sales-(a.mom_sales||0))-(b.sales-(b.mom_sales||0))).forEach((c,i)=>{
       let delta=c.sales-(c.mom_sales||0);
       let reason=c.margin<0.05?'利润率极低，疑折扣过大':(c.qty_mom!=null&&c.qty_mom<-0.3?'销量同步大降，需求可能萎缩':'需排查竞争/流量');
       L.push((i+1)+'. **'+c.name+'**：环比 '+fP(c.sales_mom)+'，本期 '+fM(c.sales)+'（上期 '+fM(c.mom_sales||0)+'），减量 **'+fM(delta)+'**。');
       L.push('   - 研判：'+reason);
     });
-  }else{L.push('本期无环比降幅超 30% 的大幅下滑品类。');}
+  }else{L.push('本期无环比降幅超 '+repThPct+'% 的大幅下滑品类。');}
   L.push('');
   // 四、连续下滑
   let dc2=d.declining_cats||[];
