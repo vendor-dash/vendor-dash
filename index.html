@@ -194,6 +194,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">开始日期</label><input type="date" id="ts" class="fi"></div>
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="te" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-tshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">渠道</label><div class="ms-wrap" id="ms-tplat" data-label="渠道"><div class="ms-trigger" onclick="toggleMs(this)">全部渠道</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">对比方式</label><select id="tcmp" class="fs" onchange="tc()"><option value="none">无对比</option><option value="mom" selected>环比</option><option value="yoy">同比</option><option value="custom">自定义对比</option></select></div>
 <div class="fg" id="tcc1" style="display:none"><label class="fl">对比开始</label><input type="date" id="tcs" class="fi"></div>
 <div class="fg" id="tcc2" style="display:none"><label class="fl">对比结束</label><input type="date" id="tce" class="fi"></div>
@@ -432,6 +433,7 @@ async function loadData(){
     let info={
       traffic_dates:[...new Set(TRAFFIC.rows.map(r=>r[TI['日期']]).filter(x=>x))].sort(),
       traffic_shops:[...new Set(TRAFFIC.rows.map(r=>r[TI['店铺']]).filter(x=>x))].sort(),
+      traffic_plats:[...new Set(TRAFFIC.rows.map(r=>r[TI['平台']]).filter(x=>x))].sort(),
       product_dates:[...new Set(PRODUCT.rows.map(r=>r[PI['日期']]).filter(x=>x))].sort(),
       product_shops:[...new Set(PRODUCT.rows.map(r=>r[PI['店铺']]).filter(x=>x))].sort(),
       product_cats:[...new Set(PRODUCT.rows.map(r=>r[PI['品类']]).filter(x=>x))].sort(),
@@ -454,6 +456,7 @@ async function initDashboard(d){
   if(td.length){document.getElementById('ts').value=td[td.length-1];document.getElementById('te').value=td[td.length-1];}
   if(pd.length){let mn=pd[0],mx=pd[pd.length-1];['cs','sss','tss','cas','scs','trs'].forEach(id=>document.getElementById(id).value=mn);['ce','see','tee','cae','sce','tre'].forEach(id=>document.getElementById(id).value=mx);}
   initMs('ms-tshop',d.traffic_shops);
+  if(d.traffic_plats&&d.traffic_plats.length)initMs('ms-tplat',d.traffic_plats);
   initMs('ms-cshop',d.product_shops);
   initMs('ms-sshop',d.product_shops);
   if(d.product_tiers&&d.product_tiers.length)initMs('ms-stier',d.product_tiers);
@@ -492,11 +495,12 @@ async function initDashboard(d){
 // 将 Date 按本地时区格式化为 yyyy-mm-dd（修复 UTC+8 下 toISOString() 会跨日到前一天的问题）
 function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 
-function _filtTraffic(data,s,e,sh){
+function _filtTraffic(data,s,e,sh,pl){
   let shops=sh?sh.split(',').map(x=>x.trim()):[];
+  let plats=pl?pl.split(',').map(x=>x.trim()):[];
   return data.filter(r=>{
     let d=r[TI['日期']];
-    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]));
+    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]))&&(!plats.length||plats.includes(r[TI['平台']]));
   });
 }
 // 提取真SPU：去掉末尾颜色/尺寸后缀（如 CHMJM002-NAVY → CHMJM002）
@@ -527,14 +531,19 @@ function expandShopForProduct(shop){
   return list.join(',');
 }
 
-function processTrafficAgg(start,end,shop,comp_start,comp_end){
+function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
   let data=TRAFFIC.rows;
-  let curr=_filtTraffic(data,start,end,shop);
-  let comp=comp_start&&comp_end?_filtTraffic(data,comp_start,comp_end,shop):[];
+  let curr=_filtTraffic(data,start,end,shop,plat);
+  let comp=comp_start&&comp_end?_filtTraffic(data,comp_start,comp_end,shop,plat):[];
 
   // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合；Vendor 店铺自动合并 Seller
   let p_shop=expandShopForProduct(shop);
   let p_curr=_filtProduct(PRODUCT.rows,start,end,p_shop,null);
+  // 渠道过滤：订单数据无平台列，按店铺名包含平台名匹配（Kirkland's→Kirkland，大小写不敏感）
+  if(plat){
+    let keys=plat.split(',').map(x=>x.trim().toLowerCase().replace(/'s$/,'')).filter(Boolean);
+    if(keys.length)p_curr=p_curr.filter(r=>{let ls=String(r[PI['店铺']]||'').toLowerCase();return keys.some(k=>ls.includes(k));});
+  }
   let p_sales=p_curr.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
   let p_qty=p_curr.reduce((s,r)=>s+(r[PI['销量']]||0),0);
 
@@ -1204,7 +1213,7 @@ function processProductShopCatAnalysis(start,end,shop,cat){
 
 // ====== TRAFFIC RENDER ======
 async function atf(){
-  let s=document.getElementById('ts').value,e=document.getElementById('te').value,shop=getMsValue('ms-tshop'),mode=document.getElementById('tcmp').value;
+  let s=document.getElementById('ts').value,e=document.getElementById('te').value,shop=getMsValue('ms-tshop'),plat=getMsValue('ms-tplat'),mode=document.getElementById('tcmp').value;
   if(!s||!e){alert('请选择日期');return}
   let cs='',ce='';
   if(mode==='custom'){cs=document.getElementById('tcs').value;ce=document.getElementById('tce').value}
@@ -1220,7 +1229,7 @@ async function atf(){
       cs=fmtDate(cs2);ce=fmtDate(ce2);
     }
   }
-  let d=processTrafficAgg(s,e,shop,cs,ce);
+  let d=processTrafficAgg(s,e,shop,cs,ce,plat);
   let k=d.kpi,ck=d.comp_kpi;
   let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
   let days=k.days||1;
