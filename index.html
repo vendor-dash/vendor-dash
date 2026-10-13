@@ -433,7 +433,14 @@ async function loadData(){
     let info={
       traffic_dates:[...new Set(TRAFFIC.rows.map(r=>r[TI['日期']]).filter(x=>x))].sort(),
       traffic_shops:[...new Set(TRAFFIC.rows.map(r=>r[TI['店铺']]).filter(x=>x))].sort(),
-      traffic_plats:[...new Set(TRAFFIC.rows.map(r=>r[TI['平台']]).filter(x=>x))].sort(),
+      traffic_plats:(function(){
+        let set=new Set(TRAFFIC.rows.map(r=>r[TI['平台']]).filter(x=>x));
+        // EU 站点（如 EU-Wayfair-Hiotec）单独作为一个渠道
+        if(TRAFFIC.rows.some(r=>(r[TI['店铺']]||'').indexOf('EU-')===0))set.add('EU-Wayfair');
+        // 自定义排序：指定渠道在前，其余（Houzz/Kirkland's等）按字母排后面
+        let order=['Wayfair','EU-Wayfair','Homedepot','Overstock','Target','Macys','CPWM','Lowes'];
+        return [...set].sort((a,b)=>{let ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0&&ib<0)return a<b?-1:a>b?1:0;if(ia<0)return 1;if(ib<0)return -1;return ia-ib;});
+      })(),
       product_dates:[...new Set(PRODUCT.rows.map(r=>r[PI['日期']]).filter(x=>x))].sort(),
       product_shops:[...new Set(PRODUCT.rows.map(r=>r[PI['店铺']]).filter(x=>x))].sort(),
       product_cats:[...new Set(PRODUCT.rows.map(r=>r[PI['品类']]).filter(x=>x))].sort(),
@@ -497,10 +504,20 @@ function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 
 function _filtTraffic(data,s,e,sh,pl){
   let shops=sh?sh.split(',').map(x=>x.trim()):[];
-  let plats=pl?pl.split(',').map(x=>x.trim()):[];
+  let chans=pl?pl.split(',').map(x=>x.trim()).filter(Boolean):[];
+  // 渠道匹配：EU-* 渠道只匹配 EU- 开头店铺；普通渠道=平台匹配且排除EU店铺（如 Wayfair 不含 EU 站）
+  function chOk(r){
+    if(!chans.length)return true;
+    let shop=r[TI['店铺']]||'';
+    let ls=shop.toLowerCase();
+    return chans.some(ch=>{
+      if(ch.indexOf('EU-')===0){let k=ch.slice(3).toLowerCase();return ls.indexOf('eu-')===0&&ls.indexOf(k)>=0;}
+      return r[TI['平台']]===ch&&ls.indexOf('eu-')!==0;
+    });
+  }
   return data.filter(r=>{
     let d=r[TI['日期']];
-    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]))&&(!plats.length||plats.includes(r[TI['平台']]));
+    return d&&s<=d&&d<=e&&(!shops.length||shops.includes(r[TI['店铺']]))&&chOk(r);
   });
 }
 // 提取真SPU：去掉末尾颜色/尺寸后缀（如 CHMJM002-NAVY → CHMJM002）
@@ -539,10 +556,16 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
   // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合；Vendor 店铺自动合并 Seller
   let p_shop=expandShopForProduct(shop);
   let p_curr=_filtProduct(PRODUCT.rows,start,end,p_shop,null);
-  // 渠道过滤：订单数据无平台列，按店铺名包含平台名匹配（Kirkland's→Kirkland，大小写不敏感）
+  // 渠道过滤：订单数据无平台列，按店铺名匹配（EU-* 渠道只含EU店铺；Kirkland's→Kirkland，大小写不敏感）
   if(plat){
-    let keys=plat.split(',').map(x=>x.trim().toLowerCase().replace(/'s$/,'')).filter(Boolean);
-    if(keys.length)p_curr=p_curr.filter(r=>{let ls=String(r[PI['店铺']]||'').toLowerCase();return keys.some(k=>ls.includes(k));});
+    let chans=plat.split(',').map(x=>x.trim()).filter(Boolean);
+    if(chans.length)p_curr=p_curr.filter(r=>{
+      let ls=String(r[PI['店铺']]||'').toLowerCase();
+      return chans.some(ch=>{
+        if(ch.indexOf('EU-')===0){let k=ch.slice(3).toLowerCase();return ls.indexOf('eu-')===0&&ls.indexOf(k)>=0;}
+        return ls.indexOf('eu-')!==0&&ls.indexOf(ch.toLowerCase().replace(/'s$/,''))>=0;
+      });
+    });
   }
   let p_sales=p_curr.reduce((s,r)=>s+(r[PI['销售额']]||0),0);
   let p_qty=p_curr.reduce((s,r)=>s+(r[PI['销量']]||0),0);
