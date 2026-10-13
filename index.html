@@ -876,10 +876,25 @@ function atrend(){
         uvNote='<li style="color:#e53935">⚠ 流量数据未加载成功，UV曲线无法显示——请刷新页面重试</li>';
       }else{
       let shopArr=shop?shop.split(',').map(x=>x.trim()).filter(Boolean):null;
+      let s_d=new Date(start),e_d=new Date(end);
+      let days=Math.round((e_d-s_d)/864e5)+1;
+      function addDays(dt,n){let d=new Date(dt);d.setDate(d.getDate()+n);return fmtDate(d);}
+      function shiftYear(dt){let d=new Date(dt);d.setFullYear(d.getFullYear()-1);return fmtDate(d);}
+      let cmpMode=document.getElementById('tcmp').value;
+      let cmpRange=null,cmpLabel='';
+      if(cmpMode==='mom'){cmpRange=[addDays(start,-days),addDays(start,-1)];cmpLabel='环比';}
+      else if(cmpMode==='yoy'){cmpRange=[shiftYear(start),shiftYear(end)];cmpLabel='同比';}
+      else if(cmpMode==='custom'){let cs=document.getElementById('tcs').value,ce=document.getElementById('tce').value;if(cs&&ce){cmpRange=[cs,ce];cmpLabel='对比期';}}
       let tRows=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end&&(!shopArr||shopArr.includes(r[TI['店铺']]));});
+      let cRows=cmpRange?TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=cmpRange[0]&&dd<=cmpRange[1]&&(!shopArr||shopArr.includes(r[TI['店铺']]));}):[];
       function mkUv(col){let m={};for(let r of tRows){let v=r[TI[col]];if(v==null)continue;let dd=r[TI['日期']];m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
+      function mkUvComp(col){if(!cRows.length)return d.labels.map(()=>null);let m={};for(let r of cRows){let v=r[TI[col]];if(v==null)continue;let dd=r[TI['日期']];m[dd]=(m[dd]||0)+v;}let dates=Object.keys(m).sort();return d.labels.map((_,i)=>i<dates.length?m[dates[i]]:null);}
       if(showPuv)tDatasets.push({label:'平台UV',data:mkUv('平台UV'),borderColor:'#e91e63',backgroundColor:'#e91e63',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
       if(showSuv)tDatasets.push({label:'店铺UV',data:mkUv('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y2'});
+      if(cmpRange){
+        if(showPuv)tDatasets.push({label:'平台UV('+cmpLabel+')',data:mkUvComp('平台UV'),borderColor:'#e91e63',backgroundColor:'#e91e63',fill:false,borderWidth:1.5,borderDash:[7,5],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+        if(showSuv)tDatasets.push({label:'店铺UV('+cmpLabel+')',data:mkUvComp('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:1.5,borderDash:[7,5],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y2'});
+      }
       }
     }
     let allDs=datasets.concat(tDatasets);
