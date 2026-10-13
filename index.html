@@ -286,6 +286,7 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="tre" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-trshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">类目</label><div class="ms-wrap" id="ms-trcat" data-label="类目"><div class="ms-trigger" onclick="toggleMs(this)">全部类目</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">UV曲线</label><div style="display:flex;gap:14px;align-items:center;height:38px;"><label style="display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="ck-puv"> 平台UV</label><label style="display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="ck-suv"> 店铺UV</label></div></div>
 <button class="btn btn-p" onclick="atrend()">查询</button>
 <button class="ibtn b" onclick="dc('trSales')">图片</button>
 </div>
@@ -376,6 +377,8 @@ function msAll(chk){let opts=chk.closest('.ms-dropdown').querySelector('.ms-opti
 function updateMsText(wrap){let checked=wrap.querySelectorAll('.ms-options input[type=checkbox]');let arr=Array.from(checked).filter(c=>c.checked);let txt=wrap.querySelector('.ms-trigger');let label=wrap.dataset.label||'店铺';if(arr.length===0){txt.textContent='全部'+label;return;}let display=v=>{let c=typeof v==='string'?null:v;return c&&(c.dataset.display||c.value)||(typeof v==='string'?v:v.value);};if(arr.length===1){txt.textContent=display(arr[0]);return;}let special=arr.filter(c=>c.dataset.display);let normal=arr.filter(c=>!c.dataset.display);if(special.length>0){let s=special.map(display).join('、');txt.textContent=s+(normal.length?' + '+normal.length+' 个'+label:'');return;}txt.textContent='已选 '+arr.length+' 个'+label;}
 function getMsValue(id){let wrap=document.getElementById(id);return Array.from(wrap.querySelectorAll('.ms-options input:checked')).map(c=>c.value).join(',');}
 function initMs(id,options){let wrap=document.getElementById(id);let opts=wrap.querySelector('.ms-options');opts.innerHTML='';options.forEach(s=>{let lbl=document.createElement('label');lbl.innerHTML='<input type="checkbox" value="'+s+'" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> '+s;opts.appendChild(lbl);});wrap.querySelector('.ms-all').checked=false;updateMsText(wrap);}
+// UV 数值格式化（K/M 缩写）
+function fUV(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(2)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'K';return String(Math.round(v));}
 
 function sp(p){
   if(p==='traffic')p='t';
@@ -864,11 +867,23 @@ function atrend(){
       let c=s.isTotal?totalColor:palette[i%palette.length];
       return {label:s.name,data:s.sales,borderColor:c,backgroundColor:c,fill:false,borderWidth:s.isTotal?3:2,borderDash:s.isTotal?[8,4]:[],tension:.3,pointRadius:s.isTotal?0:2,pointHoverRadius:s.isTotal?5:4,spanGaps:false};
     });
+    // UV曲线（开关控制，跟随店铺筛选，直接求和口径）：平台UV/店铺UV 叠加在右轴
+    let showPuv=document.getElementById('ck-puv').checked;
+    let showSuv=document.getElementById('ck-suv').checked;
+    let tDatasets=[];
+    if(showPuv||showSuv){
+      let shopArr=shop?shop.split(',').map(x=>x.trim()).filter(Boolean):null;
+      let tRows=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end&&(!shopArr||shopArr.includes(r[TI['店铺']]));});
+      function mkUv(col){let m={};for(let r of tRows){let v=r[TI[col]];if(v==null)continue;let dd=r[TI['日期']];m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
+      if(showPuv)tDatasets.push({label:'平台UV',data:mkUv('平台UV'),borderColor:'#e91e63',backgroundColor:'#e91e63',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+      if(showSuv)tDatasets.push({label:'店铺UV',data:mkUv('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+    }
+    let allDs=datasets.concat(tDatasets);
     safeDestroy(pCharts.trSales);
     pCharts.trSales=safeChart('trSales',{
       type:'line',
-      data:{labels:d.labels,datasets},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':fM(c.parsed.y))}}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}}}
+      data:{labels:d.labels,datasets:allDs},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>{let v=c.parsed.y;let isUv=c.dataset.yAxisID==='y1';return c.dataset.label+': '+(v==null?'—':(isUv?fUV(v):fM(v)));}}}},scales:Object.assign({x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}},tDatasets.length?{y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)}}}:{})}
     });
     let html='<div class="ana-block"><p>区间 <b>'+start+' ~ '+end+'</b> 共 <b>'+d.labels.length+' 天</b>。</p><ul>';
     d.series.forEach(s=>{
