@@ -550,7 +550,7 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
   // Aggregate by date：以 PRODUCT 的销售额/销量为准，缺 PRODUCT 的日期 fallback 到流量数据
   function aggByDate(trafficRows, productRows, start, end){
     let bd={};
-    function init(d){if(!bd[d])bd[d]={pUV:null,sUV:null,sales:0,qty:0,cvr:0,cn:0,hasPuv:false,hasSuv:false,hasSales:false,hasQty:false,puvG:{}};}
+    function init(d){if(!bd[d])bd[d]={pUV:null,sUV:null,sales:0,qty:0,cvr:0,cn:0,hasPuv:false,hasSuv:false,hasSales:false,hasQty:false};}
     if(productRows){
       for(let r of productRows){
         let d=r[PI['日期']];
@@ -565,14 +565,13 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
       let d=r[TI['日期']];
       if(!d)continue;
       init(d);
-      // 平台UV按「平台+市场站点」分组（US/CA/EU各自有独立的平台级UV），组内取最大去重，日终求和
-      let puv=r[TI['平台UV']];if(puv!=null){let mkt=(r[TI['店铺']]||'').split('-')[0];let gk=(r[TI['平台']]||'')+'|'+mkt;if(bd[d].puvG[gk]==null||puv>bd[d].puvG[gk])bd[d].puvG[gk]=puv;bd[d].hasPuv=true;}
+      // 平台UV：所有站点直接求和（与公司BI口径一致，不做去重/取最大）
+      let puv=r[TI['平台UV']];if(puv!=null){bd[d].pUV=(bd[d].pUV||0)+puv;bd[d].hasPuv=true;}
       let suv=r[TI['店铺UV']];if(suv!=null){bd[d].sUV=(bd[d].sUV||0)+suv;bd[d].hasSuv=true;}
       if(!bd[d].hasSales)bd[d].sales+=r[TI['销售额']]||0;
       if(!bd[d].hasQty)bd[d].qty+=r[TI['销量']]||0;
       let cvr=r[TI['转化率']];if(cvr!=null){bd[d].cvr+=cvr;bd[d].cn++;}
     }
-    for(let d in bd){if(bd[d].hasPuv)bd[d].pUV=Object.values(bd[d].puvG).reduce((a,b)=>a+(b||0),0);}
     return bd;
   }
   let bd=aggByDate(curr, p_curr, start, end);
@@ -618,18 +617,14 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
   for(let r of curr){let s=r[TI['店铺']];if(!s)continue;if(!bsh[s])bsh[s]={sales:0};bsh[s].sales+=r[TI['销售额']]||0;}
   let sh_list=Object.entries(bsh).sort((a,b)=>b[1].sales-a[1].sales).slice(0,15);
 
-  // Platform UV：按「平台+市场站点」分组去重后按平台求和（US/CA/EU 是独立的平台级UV）
-  let bplG={};
+  // Platform UV：所有站点直接求和（与公司BI口径一致，不做去重/取最大）
+  let bpl={};
   for(let r of curr){
     let p=r[TI['平台']];if(!p)continue;
     let uv=r[TI['平台UV']];if(uv==null)continue;
-    let mkt=(r[TI['店铺']]||'').split('-')[0];
-    let gk=p+'|'+mkt;
-    if(!bplG[gk])bplG[gk]={plat:p,uv:0};
-    if(uv>bplG[gk].uv)bplG[gk].uv=uv;
+    if(!bpl[p])bpl[p]={uv:0};
+    bpl[p].uv+=uv;
   }
-  let bpl={};
-  Object.values(bplG).forEach(g=>{if(!bpl[g.plat])bpl[g.plat]={uv:0};bpl[g.plat].uv+=g.uv;});
   let pl_names=Object.keys(bpl);
 
   let pUV_days=puv.filter(v=>v!=null).length;
