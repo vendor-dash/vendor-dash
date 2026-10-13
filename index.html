@@ -879,15 +879,18 @@ function atrend(){
       let tRows=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end&&(!shopArr||shopArr.includes(r[TI['店铺']]));});
       function mkUv(col){let m={};for(let r of tRows){let v=r[TI[col]];if(v==null)continue;let dd=r[TI['日期']];m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
       if(showPuv)tDatasets.push({label:'平台UV',data:mkUv('平台UV'),borderColor:'#e91e63',backgroundColor:'#e91e63',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
-      if(showSuv)tDatasets.push({label:'店铺UV',data:mkUv('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+      if(showSuv)tDatasets.push({label:'店铺UV',data:mkUv('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y2'});
       }
     }
     let allDs=datasets.concat(tDatasets);
+    let uvScales={};
+    if(showPuv)uvScales.y1={position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)},title:{display:true,text:'平台UV'}};
+    if(showSuv)uvScales.y2={position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)},title:{display:true,text:'店铺UV'}};
     safeDestroy(pCharts.trSales);
     pCharts.trSales=safeChart('trSales',{
       type:'line',
       data:{labels:d.labels,datasets:allDs},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>{let v=c.parsed.y;let isUv=c.dataset.yAxisID==='y1';return c.dataset.label+': '+(v==null?'—':(isUv?fUV(v):fM(v)));}}}},scales:Object.assign({x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}},tDatasets.length?{y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)}}}:{})}
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>{let v=c.parsed.y;let isUv=c.dataset.yAxisID==='y1'||c.dataset.yAxisID==='y2';return c.dataset.label+': '+(v==null?'—':(isUv?fUV(v):fM(v)));}}}},scales:Object.assign({x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}},uvScales)}
     });
     let html='<div class="ana-block"><p>区间 <b>'+start+' ~ '+end+'</b> 共 <b>'+d.labels.length+' 天</b>。</p><ul>'+uvNote;
     d.series.forEach(s=>{
