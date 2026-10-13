@@ -505,14 +505,14 @@ function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 function _filtTraffic(data,s,e,sh,pl){
   let shops=sh?sh.split(',').map(x=>x.trim()):[];
   let chans=pl?pl.split(',').map(x=>x.trim()).filter(Boolean):[];
-  // 渠道匹配：EU-* 渠道只匹配 EU- 开头店铺；普通渠道=平台匹配且排除EU店铺（如 Wayfair 不含 EU 站）
+  // 渠道匹配：EU-* 渠道只匹配 EU- 开头店铺；普通渠道=平台匹配（含 EU 站，如 Wayfair 含美/加/EU）
   function chOk(r){
     if(!chans.length)return true;
     let shop=r[TI['店铺']]||'';
     let ls=shop.toLowerCase();
     return chans.some(ch=>{
       if(ch.indexOf('EU-')===0){let k=ch.slice(3).toLowerCase();return ls.indexOf('eu-')===0&&ls.indexOf(k)>=0;}
-      return r[TI['平台']]===ch&&ls.indexOf('eu-')!==0;
+      return r[TI['平台']]===ch;
     });
   }
   return data.filter(r=>{
@@ -556,14 +556,14 @@ function processTrafficAgg(start,end,shop,comp_start,comp_end,plat){
   // 订单数据：总销售额、总销量改为用 PRODUCT 数据聚合；Vendor 店铺自动合并 Seller
   let p_shop=expandShopForProduct(shop);
   let p_curr=_filtProduct(PRODUCT.rows,start,end,p_shop,null);
-  // 渠道过滤：订单数据无平台列，按店铺名匹配（EU-* 渠道只含EU店铺；Kirkland's→Kirkland，大小写不敏感）
+  // 渠道过滤：订单数据无平台列，按店铺名匹配（EU-* 渠道只含EU店铺；普通渠道含全部站点，Kirkland's→Kirkland）
   if(plat){
     let chans=plat.split(',').map(x=>x.trim()).filter(Boolean);
     if(chans.length)p_curr=p_curr.filter(r=>{
       let ls=String(r[PI['店铺']]||'').toLowerCase();
       return chans.some(ch=>{
         if(ch.indexOf('EU-')===0){let k=ch.slice(3).toLowerCase();return ls.indexOf('eu-')===0&&ls.indexOf(k)>=0;}
-        return ls.indexOf('eu-')!==0&&ls.indexOf(ch.toLowerCase().replace(/'s$/,''))>=0;
+        return ls.indexOf(ch.toLowerCase().replace(/'s$/,''))>=0;
       });
     });
   }
