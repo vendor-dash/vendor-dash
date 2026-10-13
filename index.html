@@ -863,11 +863,11 @@ function atrend(){
     let shop=getMsValue('ms-trshop');
     let cat=getMsValue('ms-trcat');
     if(!start||!end){document.getElementById('trana').innerHTML='<p>请先选择开始/结束日期</p>';return;}
-    // ==== 流量筛选：大盘流量（平台UV）是平台级指标，不跟随店铺筛选；店铺流量（店铺UV）跟随店铺筛选 ====
+    // ==== 流量筛选：大盘流量（平台UV）和店铺流量（店铺UV）都跟随上面的店铺筛选 ====
     let shopArr=shop?shop.split(',').map(x=>x.trim()).filter(Boolean):null;
     let tRowsAll=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end;});
     let tRowsShop=shopArr?tRowsAll.filter(r=>shopArr.includes(r[TI['店铺']])):tRowsAll;
-    let avPlats=[...new Set(tRowsAll.map(r=>r[TI['平台']]).filter(Boolean))].sort();
+    let avPlats=[...new Set(tRowsShop.map(r=>r[TI['平台']]).filter(Boolean))].sort();
     let avShops=[...new Set(tRowsShop.map(r=>r[TI['店铺']]).filter(Boolean))].sort();
     rebuildMs('ms-trplat',[{v:'__ALL__',d:'全部汇总（大盘）'}].concat(avPlats));
     rebuildMs('ms-trsuv',[{v:'__ALL__',d:'全部汇总'}].concat(avShops));
@@ -882,13 +882,13 @@ function atrend(){
       let c=s.isTotal?totalColor:palette[i%palette.length];
       return {label:s.name,data:s.sales,borderColor:c,backgroundColor:c,fill:false,borderWidth:s.isTotal?3:2,borderDash:s.isTotal?[8,4]:[],tension:.3,pointRadius:s.isTotal?0:2,pointHoverRadius:s.isTotal?5:4,spanGaps:false};
     });
-    // 流量折线（UV，右轴）：大盘流量=平台UV（全量，不看店铺筛选），店铺流量=店铺UV（跟随店铺筛选）；__ALL__ 为汇总线
+    // 流量折线（UV，右轴）：大盘流量=平台UV，店铺流量=店铺UV，两者都跟随店铺筛选；__ALL__ 为汇总线
     let tColors=['#e91e63','#00acc1','#7cb342','#f4511e','#5e35b1','#039be5','#c0ca33','#d81b60','#ad1457','#00897b'];
     function mkUv(src,f,col){let m={};for(let r of src){if(!f(r))continue;let dd=r[TI['日期']];let v=r[TI[col]];if(v==null)continue;m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
     let tDatasets=[],tStats=[];
     platSel.forEach((p,i)=>{
       let isAll=p==='__ALL__';
-      let vals=mkUv(tRowsAll,r=>isAll||r[TI['平台']]===p,'平台UV');
+      let vals=mkUv(tRowsShop,r=>isAll||r[TI['平台']]===p,'平台UV');
       let name=isAll?'大盘UV·全部汇总':'平台UV·'+p;
       tDatasets.push({label:name,data:vals,borderColor:tColors[i%tColors.length],backgroundColor:tColors[i%tColors.length],fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
       tStats.push({name,vals});
