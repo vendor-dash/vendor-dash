@@ -870,13 +870,17 @@ function atrend(){
     // UV曲线（开关控制，跟随店铺筛选，直接求和口径）：平台UV/店铺UV 叠加在右轴
     let showPuv=document.getElementById('ck-puv').checked;
     let showSuv=document.getElementById('ck-suv').checked;
-    let tDatasets=[];
+    let tDatasets=[],uvNote='';
     if(showPuv||showSuv){
+      if(!TRAFFIC||!TRAFFIC.rows){
+        uvNote='<li style="color:#e53935">⚠ 流量数据未加载成功，UV曲线无法显示——请刷新页面重试</li>';
+      }else{
       let shopArr=shop?shop.split(',').map(x=>x.trim()).filter(Boolean):null;
       let tRows=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end&&(!shopArr||shopArr.includes(r[TI['店铺']]));});
       function mkUv(col){let m={};for(let r of tRows){let v=r[TI[col]];if(v==null)continue;let dd=r[TI['日期']];m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
       if(showPuv)tDatasets.push({label:'平台UV',data:mkUv('平台UV'),borderColor:'#e91e63',backgroundColor:'#e91e63',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
       if(showSuv)tDatasets.push({label:'店铺UV',data:mkUv('店铺UV'),borderColor:'#00acc1',backgroundColor:'#00acc1',fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+      }
     }
     let allDs=datasets.concat(tDatasets);
     safeDestroy(pCharts.trSales);
@@ -885,7 +889,7 @@ function atrend(){
       data:{labels:d.labels,datasets:allDs},
       options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>{let v=c.parsed.y;let isUv=c.dataset.yAxisID==='y1';return c.dataset.label+': '+(v==null?'—':(isUv?fUV(v):fM(v)));}}}},scales:Object.assign({x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}},tDatasets.length?{y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)}}}:{})}
     });
-    let html='<div class="ana-block"><p>区间 <b>'+start+' ~ '+end+'</b> 共 <b>'+d.labels.length+' 天</b>。</p><ul>';
+    let html='<div class="ana-block"><p>区间 <b>'+start+' ~ '+end+'</b> 共 <b>'+d.labels.length+' 天</b>。</p><ul>'+uvNote;
     d.series.forEach(s=>{
       let vals=s.sales;
       let sum=vals.reduce((a,b)=>a+b,0);
