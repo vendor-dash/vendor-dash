@@ -286,6 +286,8 @@ tr:hover td:first-child{background:#f5f7fa}
 <div class="fg"><label class="fl">结束日期</label><input type="date" id="tre" class="fi"></div>
 <div class="fg"><label class="fl">店铺</label><div class="ms-wrap" id="ms-trshop"><div class="ms-trigger" onclick="toggleMs(this)">全部店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <div class="fg"><label class="fl">类目</label><div class="ms-wrap" id="ms-trcat" data-label="类目"><div class="ms-trigger" onclick="toggleMs(this)">全部类目</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">大盘流量</label><div class="ms-wrap" id="ms-trplat" data-label="平台"><div class="ms-trigger" onclick="toggleMs(this)">全部平台</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
+<div class="fg"><label class="fl">店铺流量</label><div class="ms-wrap" id="ms-trsuv" data-label="流量店铺"><div class="ms-trigger" onclick="toggleMs(this)">全部流量店铺</div><div class="ms-dropdown"><div class="ms-actions"><label><input type="checkbox" class="ms-all" onchange="msAll(this)"> 全选</label></div><div class="ms-options"></div></div></div></div>
 <button class="btn btn-p" onclick="atrend()">查询</button>
 <button class="ibtn b" onclick="dc('trSales')">图片</button>
 </div>
@@ -376,6 +378,10 @@ function msAll(chk){let opts=chk.closest('.ms-dropdown').querySelector('.ms-opti
 function updateMsText(wrap){let checked=wrap.querySelectorAll('.ms-options input[type=checkbox]');let arr=Array.from(checked).filter(c=>c.checked);let txt=wrap.querySelector('.ms-trigger');let label=wrap.dataset.label||'店铺';if(arr.length===0){txt.textContent='全部'+label;return;}let display=v=>{let c=typeof v==='string'?null:v;return c&&(c.dataset.display||c.value)||(typeof v==='string'?v:v.value);};if(arr.length===1){txt.textContent=display(arr[0]);return;}let special=arr.filter(c=>c.dataset.display);let normal=arr.filter(c=>!c.dataset.display);if(special.length>0){let s=special.map(display).join('、');txt.textContent=s+(normal.length?' + '+normal.length+' 个'+label:'');return;}txt.textContent='已选 '+arr.length+' 个'+label;}
 function getMsValue(id){let wrap=document.getElementById(id);return Array.from(wrap.querySelectorAll('.ms-options input:checked')).map(c=>c.value).join(',');}
 function initMs(id,options){let wrap=document.getElementById(id);let opts=wrap.querySelector('.ms-options');opts.innerHTML='';options.forEach(s=>{let lbl=document.createElement('label');lbl.innerHTML='<input type="checkbox" value="'+s+'" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> '+s;opts.appendChild(lbl);});wrap.querySelector('.ms-all').checked=false;updateMsText(wrap);}
+// 动态重建多选选项，保留之前已勾选且仍在新选项中的值。items: 字符串数组 或 {v,d}（d=显示名）
+function rebuildMs(id,items){let wrap=document.getElementById(id);let prev=Array.from(wrap.querySelectorAll('.ms-options input:checked')).map(c=>c.value);let opts=wrap.querySelector('.ms-options');opts.innerHTML='';items.forEach(it=>{let v=typeof it==='string'?it:it.v,dsp=typeof it==='string'?null:it.d;let lbl=document.createElement('label');lbl.innerHTML='<input type="checkbox" value="'+v+'"'+(dsp?' data-display="'+dsp+'"':'')+' onchange="updateMsText(this.closest(\'.ms-wrap\'))"> '+(dsp||v);opts.appendChild(lbl);});prev.forEach(v=>{let c=opts.querySelector('input[value="'+v+'"]');if(c)c.checked=true;});wrap.querySelector('.ms-all').checked=false;updateMsText(wrap);}
+// UV 数值格式化（K/M 缩写）
+function fUV(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(2)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'K';return String(Math.round(v));}
 
 function sp(p){
   if(p==='traffic')p='t';
@@ -471,6 +477,8 @@ async function initDashboard(d){
   initMs('ms-tshop2',d.product_shops);
   initMs('ms-trshop',d.product_shops);
   initMs('ms-trcat',d.product_cats);
+  // 趋势分析流量筛选初始选项（查询时会按店铺筛选动态重建）
+  if(TRAFFIC){rebuildMs('ms-trplat',[{v:'__ALL__',d:'全部汇总（大盘）'}].concat([...new Set(TRAFFIC.rows.map(r=>r[TI['平台']]).filter(Boolean))].sort()));rebuildMs('ms-trsuv',[{v:'__ALL__',d:'全部汇总'}].concat([...new Set(TRAFFIC.rows.map(r=>r[TI['店铺']]).filter(Boolean))].sort()));}
   // 趋势分析类目多选：顶部增加"全部类目（汇总）"选项，用于显式查看全部类目总和趋势
   let trcatOpts=document.querySelector('#ms-trcat .ms-options');
   if(trcatOpts){let allOpt=document.createElement('label');allOpt.className='ms-total-opt';allOpt.innerHTML='<input type="checkbox" value="__ALL_CATS__" data-display="全部类目（汇总）" onchange="updateMsText(this.closest(\'.ms-wrap\'))"> 全部类目（汇总）';trcatOpts.insertBefore(allOpt,trcatOpts.firstChild);}
@@ -855,6 +863,15 @@ function atrend(){
     let shop=getMsValue('ms-trshop');
     let cat=getMsValue('ms-trcat');
     if(!start||!end){document.getElementById('trana').innerHTML='<p>请先选择开始/结束日期</p>';return;}
+    // ==== 流量筛选：大盘流量（平台UV）/ 店铺流量（店铺UV），范围跟随上面的店铺筛选 ====
+    let shopArr=shop?shop.split(',').map(x=>x.trim()).filter(Boolean):null;
+    let tRows=TRAFFIC.rows.filter(r=>{let dd=r[TI['日期']];return dd&&dd>=start&&dd<=end&&(!shopArr||shopArr.includes(r[TI['店铺']]));});
+    let avPlats=[...new Set(tRows.map(r=>r[TI['平台']]).filter(Boolean))].sort();
+    let avShops=[...new Set(tRows.map(r=>r[TI['店铺']]).filter(Boolean))].sort();
+    rebuildMs('ms-trplat',[{v:'__ALL__',d:'全部汇总（大盘）'}].concat(avPlats));
+    rebuildMs('ms-trsuv',[{v:'__ALL__',d:'全部汇总'}].concat(avShops));
+    let platSel=(getMsValue('ms-trplat')||'').split(',').filter(Boolean);
+    let suvSel=(getMsValue('ms-trsuv')||'').split(',').filter(Boolean);
     let d=processTrend(start,end,shop,cat);
     let palette=['#1a237e','#e53935','#2e7d32','#fb8c00','#6a1b9a','#00838f','#c62828','#1565c0','#5d4037','#827717'];
     function hexToRgba(hex,a){let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return 'rgba('+r+','+g+','+b+','+a+')';}
@@ -864,11 +881,31 @@ function atrend(){
       let c=s.isTotal?totalColor:palette[i%palette.length];
       return {label:s.name,data:s.sales,borderColor:c,backgroundColor:c,fill:false,borderWidth:s.isTotal?3:2,borderDash:s.isTotal?[8,4]:[],tension:.3,pointRadius:s.isTotal?0:2,pointHoverRadius:s.isTotal?5:4,spanGaps:false};
     });
+    // 流量折线（UV，右轴）：大盘流量=平台UV，店铺流量=店铺UV；__ALL__ 为汇总线
+    let tColors=['#e91e63','#00acc1','#7cb342','#f4511e','#5e35b1','#039be5','#c0ca33','#d81b60','#ad1457','#00897b'];
+    function uvSeries(f,col){let m={};for(let r of tRows){if(!f(r))continue;let dd=r[TI['日期']];let v=r[TI[col]];if(v==null)continue;m[dd]=(m[dd]||0)+v;}return d.labels.map(x=>m.hasOwnProperty(x)?m[x]:null);}
+    let tDatasets=[],tStats=[];
+    platSel.forEach((p,i)=>{
+      let isAll=p==='__ALL__';
+      let vals=uvSeries(r=>isAll||r[TI['平台']]===p,'平台UV');
+      let name=isAll?'大盘UV·全部汇总':'平台UV·'+p;
+      tDatasets.push({label:name,data:vals,borderColor:tColors[i%tColors.length],backgroundColor:tColors[i%tColors.length],fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+      tStats.push({name,vals});
+    });
+    suvSel.forEach((s,i)=>{
+      let isAll=s==='__ALL__';
+      let vals=uvSeries(r=>isAll||r[TI['店铺']]===s,'店铺UV');
+      let name=isAll?'店铺UV·全部汇总':'店铺UV·'+s;
+      let c=tColors[(i+4)%tColors.length];
+      tDatasets.push({label:name,data:vals,borderColor:c,backgroundColor:c,fill:false,borderWidth:2,borderDash:[2,3],tension:.3,pointRadius:0,pointHoverRadius:4,spanGaps:false,yAxisID:'y1'});
+      tStats.push({name,vals});
+    });
+    let allDs=datasets.concat(tDatasets);
     safeDestroy(pCharts.trSales);
     pCharts.trSales=safeChart('trSales',{
       type:'line',
-      data:{labels:d.labels,datasets},
-      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':fM(c.parsed.y))}}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}}}}
+      data:{labels:d.labels,datasets:allDs},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>{let v=c.parsed.y;let isUv=c.dataset.yAxisID==='y1';return c.dataset.label+': '+(v==null?'—':(isUv?fUV(v):fM(v)));}}}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>fM(v)}},y1:{position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{callback:v=>fUV(v)}}}}
     });
     let html='<div class="ana-block"><p>区间 <b>'+start+' ~ '+end+'</b> 共 <b>'+d.labels.length+' 天</b>。</p><ul>';
     d.series.forEach(s=>{
@@ -878,6 +915,14 @@ function atrend(){
       let maxV=-Infinity,maxI=0,minV=Infinity,minI=0;
       vals.forEach((v,i)=>{if(v>maxV){maxV=v;maxI=i;}if(v>0&&v<minV){minV=v;minI=i;}});
       html+='<li><b>'+s.name+'</b>：合计 '+fM(sum)+'，日均 '+fM(avg)+'，峰值 '+d.labels[maxI]+'（'+fM(vals[maxI])+'），最低 '+d.labels[minI]+'（'+fM(vals[minI])+'）</li>';
+    });
+    tStats.forEach(s=>{
+      let vals=s.vals;
+      let sum=vals.reduce((a,b)=>a+(b||0),0);
+      let avg=sum/vals.length;
+      let maxV=-Infinity,maxI=0;
+      vals.forEach((v,i)=>{if(v!=null&&v>maxV){maxV=v;maxI=i;}});
+      html+='<li><b>'+s.name+'</b>：合计 '+fUV(sum)+'，日均 '+fUV(avg)+(maxV===-Infinity?'':'，峰值 '+d.labels[maxI]+'（'+fUV(maxV)+'）')+'</li>';
     });
     html+='</ul></div>';
     document.getElementById('trana').innerHTML=html;
