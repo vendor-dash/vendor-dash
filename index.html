@@ -1968,7 +1968,7 @@ async function as(){
   if(!s||!e){alert('请选择日期');return}
   if(window._spuThUp==null)window._spuThUp=0.3;
   if(window._spuThDown==null)window._spuThDown=0.3;
-  if(window._spuSalesFloor==null)window._spuSalesFloor=500;
+  if(window._spuSalesFloor==null)window._spuSalesFloor=0;
   let d=processProductSpu(s,e,shop,cat,sch,tiers,dtiers);
   // 列定义（用于表头渲染 + 列显隐控制）
   window._spuColDefs=[];
@@ -2024,7 +2024,7 @@ async function as(){
     let growers=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom>=window._spuThUp&&v.sales>=floor)
       .sort((a,b)=>(b.sales-(b.mom_sales||0))-(a.sales-(a.mom_sales||0)));
     {
-      ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 高速增长SPU（环比 ≥ <input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thUpPct+'" min="1" max="99" step="1" onchange="spuThChange(\'up\',this.value)" title="默认30，留空恢复默认"> %，销售额≥<input type="number" class="fi" style="width:70px;padding:2px 4px;font-size:12px;" value="'+floor+'" min="0" step="50" onchange="spuFloorChange(this.value)" title="销售额下限（美元），默认500，留空=不限制">$，共 '+growers.length+' 个）</h4>';
+      ana+='<div class="ana-block" style="border-left:5px solid #2e7d32;background:#f1f8f1;"><h4 style="margin-bottom:8px;">🔥 高速增长SPU（环比 ≥ <input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thUpPct+'" min="1" max="99" step="1" onchange="spuThChange(\'up\',this.value)" title="默认30，留空恢复默认"> %，销售额≥<input type="number" class="fi" style="width:70px;padding:2px 4px;font-size:12px;" value="'+floor+'" min="0" step="50" onchange="spuFloorChange(this.value)" title="销售额下限（美元），默认0（不限制），留空=不限制">$，共 '+growers.length+' 个）</h4>';
       if(growers.length===0){
         ana+='<p style="font-size:12px;color:#666;background:#fff;padding:8px 10px;border-radius:6px;margin:0;">当前阈值下无符合条件的SPU，可调低上方百分比后自动刷新。</p></div>';
       }else{
@@ -2050,7 +2050,7 @@ async function as(){
     let decliners=d.spu_list.filter(v=>v.sales_mom&&v.sales_mom<=-window._spuThDown&&v.sales>=floor)
       .sort((a,b)=>(a.sales-(a.mom_sales||0))-(b.sales-(b.mom_sales||0)));
     {
-      ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 快速下滑SPU（环比 ≤ -<input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thDownPct+'" min="1" max="99" step="1" onchange="spuThChange(\'down\',this.value)" title="默认30，留空恢复默认"> %，销售额≥<input type="number" class="fi" style="width:70px;padding:2px 4px;font-size:12px;" value="'+floor+'" min="0" step="50" onchange="spuFloorChange(this.value)" title="销售额下限（美元），默认500，留空=不限制">$，共 '+decliners.length+' 个）</h4>';
+      ana+='<div class="ana-block" style="border-left:5px solid #c62828;background:#fff5f5;"><h4 style="margin-bottom:8px;">⚠ 快速下滑SPU（环比 ≤ -<input type="number" class="fi" style="width:58px;padding:2px 4px;font-size:12px;" value="'+thDownPct+'" min="1" max="99" step="1" onchange="spuThChange(\'down\',this.value)" title="默认30，留空恢复默认"> %，销售额≥<input type="number" class="fi" style="width:70px;padding:2px 4px;font-size:12px;" value="'+floor+'" min="0" step="50" onchange="spuFloorChange(this.value)" title="销售额下限（美元），默认0（不限制），留空=不限制">$，共 '+decliners.length+' 个）</h4>';
       if(decliners.length===0){
         ana+='<p style="font-size:12px;color:#666;background:#fff;padding:8px 10px;border-radius:6px;margin:0;">当前阈值下无符合条件的SPU，可调低上方百分比后自动刷新。</p></div>';
       }else{
