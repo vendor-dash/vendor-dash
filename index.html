@@ -264,7 +264,6 @@ tr:hover td:first-child{background:#f5f7fa}
 <button class="btn btn-p" onclick="at()">查询</button>
 <button class="ibtn o" onclick="dtXLSX2()">Excel</button>
 </div>
-<div class="chart-card" style="margin-bottom:20px"><div class="chart-header"><div class="chart-title">TOP30 SPU 销售额排行</div><button class="ibtn b" onclick="dc('ct30')">图片</button></div><div class="chart-body tall"><canvas id="ct30"></canvas></div></div>
 <div class="table-card"><div class="table-header"><div class="table-title">TOP30 SPU明细</div><div style="position:relative;display:flex;align-items:center;gap:8px;"><button class="ibtn o" onclick="dtXLSX2()">Excel</button><button class="col-toggle-btn" onclick="toggleColPanel(this)">⚙️ 列设置</button><div class="col-toggle-panel" id="col-panel-top30"></div></div></div><div class="table-wrap"><table id="t30-table"><thead><tr id="t30th"></tr></thead><tbody id="t30tb"></tbody></table></div><div class="table-note" id="t30-note"></div></div>
 </div>
 <!-- CAT ANALYSIS -->
@@ -2177,8 +2176,6 @@ async function at(){
   });
   document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="19" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-top30');
-  if(pCharts.t30)pCharts.t30.destroy();
-  pCharts.t30=safeChart('ct30',{type:'bar',data:{labels:d.top30.map(v=>v.spu),datasets:[{label:'销售额',data:d.top30.map(v=>v.sales),backgroundColor:d.top30.map((_,i)=>CP[i%CP.length])}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
 }
 function dtXLSX2(){
   // 跟随列显隐(col-hidden) + 当前筛选后的可见行
