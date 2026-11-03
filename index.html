@@ -1306,7 +1306,7 @@ async function atf(){
   }
   let d=processTrafficAgg(s,e,shop,cs,ce,plat);
   let k=d.kpi,ck=d.comp_kpi;
-  let cl=mode==='mom'?'上期':(mode==='yoy'?'去年同期':(cs?cs+'~'+ce:''));
+  let cl=(cs&&ce)?(cs+' ~ '+ce):(mode==='mom'?'上期':(mode==='yoy'?'去年同期':'对比期'));
   let days=k.days||1;
   let h='';
   function compSub(cur,prev,fmt){let c=ch(cur,prev);return'<span class="'+cC(c)+'">'+cA(c)+' '+fP(Math.abs(c||0))+' vs '+cl+'</span><br><span style="opacity:.85">'+cl+' '+fmt(prev)+'</span>';}
