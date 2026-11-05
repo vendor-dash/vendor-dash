@@ -1309,7 +1309,7 @@ async function atf(){
   let cl=(cs&&ce)?(cs+' ~ '+ce):(mode==='mom'?'上期':(mode==='yoy'?'去年同期':'对比期'));
   let days=k.days||1;
   let h='';
-  function compSub(cur,prev,fmt){let c=ch(cur,prev);return'<span class="'+cC(c)+'">'+cA(c)+' '+fP(Math.abs(c||0))+' vs '+cl+'</span><br><span style="opacity:.85">'+cl+' '+fmt(prev)+'</span>';}
+  function compSub(cur,prev,fmt){let c=ch(cur,prev);return'<span class="'+cC(c)+'">'+cA(c)+' '+fP(Math.abs(c||0))+' vs '+cl+'</span><br><span style="opacity:.85">'+fmt(prev)+'</span>';}
   h+='<div class="kpi-card blue"><div class="kpi-label">总销售额</div><div class="kpi-value">'+fM(k.sales)+'</div>';
   if(ck)h+='<div class="kpi-sub">'+compSub(k.sales,ck.sales,fM)+'</div>';
   h+='</div>';
@@ -1336,12 +1336,12 @@ async function atf(){
   }}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true}}}});
   tCharts.cv=safeChart('ccv',{type:'line',data:{labels:d.dates,datasets:[{label:'转化率',data:d.cvr.map(v=>v*100),borderColor:'#7b1fa2',backgroundColor:'rgba(123,31,162,.1)',fill:true,tension:.3},...(ck?[{label:cl+' 转化率',data:d.ccvr.map(v=>v*100),borderColor:'#00897b',borderDash:[5,5],fill:false,tension:.3}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{
     title:(items)=>{let i=items[0].dataIndex;let cur=(d.dates&&d.dates[i])?d.dates[i]:'';let cd=(d.cdates&&d.cdates[i])?d.cdates[i]:null;return cd?(cur+' / 上期 '+cd):cur;},
-    label:(ctx)=>{let v=ctx.parsed.y;return ctx.dataset.label+': '+v.toFixed(2)+'%';}
+    label:(ctx)=>{let i=ctx.dataIndex,v=ctx.parsed.y;if(ctx.dataset.label.indexOf(cl)>=0){let cd=(d.cdates&&d.cdates[i])?d.cdates[i]:null;return ctx.dataset.label+(cd?(' ('+cd+')'):'')+': '+v.toFixed(2)+'%';}return ctx.dataset.label+': '+v.toFixed(2)+'%';}
   }}},scales:{x:{ticks:{maxTicksLimit:20}},y:{beginAtZero:true,ticks:{callback:v=>v.toFixed(2)+'%'}}}}});
   let sMin=Math.min(...d.sales.filter(v=>v!=null));if(ck){let csMin=Math.min(...d.csales.filter(v=>v!=null));if(csMin<sMin)sMin=csMin;}
   tCharts.uv2=safeChart('cuv2',{type:'line',data:{labels:d.dates,datasets:[{label:'平台UV',data:d.puv,borderColor:'#1a237e',backgroundColor:'#1a237e',yAxisID:'y',tension:.3,pointRadius:2,fill:false},{label:'店铺UV',data:d.suv,borderColor:'#e53935',backgroundColor:'#e53935',yAxisID:'y1',tension:.3,pointRadius:2,fill:false},{label:'销售额',data:d.sales,borderColor:'#00897b',backgroundColor:'rgba(0,137,123,.08)',yAxisID:'y2',tension:.3,pointRadius:2,fill:false},...(ck?[{label:'平台UV（'+cl+'）',data:d.cpuv,borderColor:'#fb8c00',backgroundColor:'#fb8c00',borderDash:[5,5],yAxisID:'y',tension:.3,pointRadius:2,fill:false},{label:'店铺UV（'+cl+'）',data:d.csuv,borderColor:'#d81b60',backgroundColor:'#d81b60',borderDash:[5,5],yAxisID:'y1',tension:.3,pointRadius:2,fill:false},{label:'销售额（'+cl+'）',data:d.csales,borderColor:'#ff6f00',borderDash:[5,5],yAxisID:'y2',tension:.3,pointRadius:2,fill:false}]:[])]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{
     title:(items)=>{let i=items[0].dataIndex;let cur=(d.dates&&d.dates[i])?d.dates[i]:'';let cd=(d.cdates&&d.cdates[i])?d.cdates[i]:null;return cd?(cur+' / 上期 '+cd):cur;},
-    label:(ctx)=>{let v=ctx.parsed.y;let val=(ctx.dataset.label.indexOf('销售额')>=0)?fM(v):fN(v,0,true);return ctx.dataset.label+': '+val;}
+    label:(ctx)=>{let i=ctx.dataIndex,v=ctx.parsed.y;let isC=ctx.dataset.label.indexOf(cl)>=0;let val=(ctx.dataset.label.indexOf('销售额')>=0)?fM(v):fN(v,0,true);if(isC){let cd=(d.cdates&&d.cdates[i])?d.cdates[i]:null;return ctx.dataset.label+(cd?(' ('+cd+')'):'')+': '+val;}return ctx.dataset.label+': '+val;}
   }}},scales:{x:{ticks:{maxTicksLimit:20}},y:{type:'linear',display:true,position:'left',title:{display:true,text:'平台UV'},min:yMin},y1:{type:'linear',display:true,position:'right',title:{display:true,text:'店铺UV'},min:y1Min,grid:{drawOnChartArea:false}},y2:{type:'linear',display:true,position:'right',title:{display:true,text:'销售额'},min:sMin*0.85,grid:{drawOnChartArea:false}}}}});
   // Table
   document.getElementById('tth').innerHTML='<th>日期</th><th>平台</th><th>店铺</th><th>平台UV</th><th>店铺UV</th><th>店铺UV占比</th><th>转化率</th><th>销量</th><th>销售额</th>';
