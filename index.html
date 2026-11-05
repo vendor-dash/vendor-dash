@@ -1618,6 +1618,7 @@ async function ac(){
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'日均销量'))});
   th=th.concat([addCol('销量','销量占比')]);
+  th.push(addCol('单价','件单价'));
   document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
   buildColPanel('col-panel-cat',window._catColDefs);
 
@@ -1648,7 +1649,7 @@ async function ac(){
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
     for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i]||0)+'</td>';
     for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
-    h+='<td>'+fP(v.qty_share)+'</td></tr>';
+    h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.qty>0?v.sales/v.qty:0)+'</td></tr>';
   });
   h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
   // ── 销额组合计：本期 → 占比 → 同环比 → 前两月 ──
@@ -1666,7 +1667,7 @@ async function ac(){
   h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td><td>-</td>';
   d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td>'});
   d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fN(pq/pd)+'</td>'});
-  h+='<td>100%</td></tr>';
+  h+='<td>100%</td><td>'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-cat');
   let ana='';
