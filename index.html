@@ -1608,7 +1608,7 @@ async function ac(){
   // 顺序：品类 → 本期销额/同环比 → 前两月销额 → 毛利 → 本期销量/同环比 → 前两月销量/占比
   window._catColDefs=[];
   function addCol(group,label){window._catColDefs.push({g:group,l:label});return label;}
-  let th=[addCol('品类','品类')];
+  let th=[addCol('品类','品类'),addCol('单价','件单价')];
   th=th.concat([addCol('销额','本期销售额'),addCol('销额','销售额占比'),addCol('销额','同比期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比')]);
   d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'销售额'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销额',l+'日均销售额'))});
@@ -1618,14 +1618,13 @@ async function ac(){
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'日均销量'))});
   th=th.concat([addCol('销量','销量占比')]);
-  th.push(addCol('单价','件单价'));
   document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
   buildColPanel('col-panel-cat',window._catColDefs);
 
   let days=d.period?Math.round((new Date(d.period.end)-new Date(d.period.start))/864e5)+1:1;
   let h='';
   d.cat_list.forEach(v=>{
-    h+='<tr><td>'+v.name+'</td>';
+    h+='<tr><td>'+v.name+'</td><td>'+fM(v.qty>0?v.sales/v.qty:0)+'</td>';
     // ── 销额组：本期 → 占比 → 同环比 → 前两月（总额/日均/占比） ──
     h+='<td>'+fM(v.sales)+'</td>';
     h+='<td>'+fP(v.sales_share)+'</td>';
@@ -1649,9 +1648,9 @@ async function ac(){
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
     for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i]||0)+'</td>';
     for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
-    h+='<td>'+fP(v.qty_share)+'</td><td>'+fM(v.qty>0?v.sales/v.qty:0)+'</td></tr>';
+    h+='<td>'+fP(v.qty_share)+'</td></tr>';
   });
-  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
+  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td><td>'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td>';
   // ── 销额组合计：本期 → 占比 → 同环比 → 前两月 ──
   h+='<td>'+fM(d.total_sales)+'</td><td>100%</td>';
   h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
@@ -1667,7 +1666,7 @@ async function ac(){
   h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td><td>-</td>';
   d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td>'});
   d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fN(pq/pd)+'</td>'});
-  h+='<td>100%</td><td>'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td></tr>';
+  h+='<td>100%</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-cat');
   let ana='';
