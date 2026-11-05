@@ -368,6 +368,8 @@ function setProgress(pct){document.getElementById('loading-bar').style.width=pct
 function fN(n,d=0,raw=false){if(n==null||isNaN(n))return'-';if(!raw&&Math.abs(n)>=1e6)return(n/1e6).toFixed(2)+'M';if(!raw&&Math.abs(n)>=1e4)return(n/1e4).toFixed(1)+'W';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fP(n,d=1){if(n==null||isNaN(n))return'-';return(n*100).toFixed(d)+'%'}
 function fM(n){if(n==null||isNaN(n))return'-';return'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:0})}
+// 取原始数值，用于导出 Excel 时挂到 data-val（精确，不四舍五入）
+function rnum(v){if(v==null||isNaN(v))return '';return Number(v);}
 function cC(v){return v!=null?(v>=0?'up':'down'):''}
 function cA(v){return v!=null?(v>=0?'↑':'↓'):''}
 function safeChart(id,config){try{if(!window.Chart){console.error('Chart.js not loaded');return null;}return new Chart(document.getElementById(id),config);}catch(e){console.error('Chart error',id,e);return null;}}
@@ -1347,7 +1349,7 @@ async function atf(){
   document.getElementById('tth').innerHTML='<th>日期</th><th>平台</th><th>店铺</th><th>平台UV</th><th>店铺UV</th><th>店铺UV占比</th><th>转化率</th><th>销量</th><th>销售额</th>';
   if(d.detail&&d.detail.length){
     let th='';
-    d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td>'+fN(r.puv,0,true)+'</td><td>'+fN(r.suv,0,true)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td>'+fN(r.qty)+'</td><td>'+fM(r.sales)+'</td></tr>';});
+    d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td data-val="'+rnum(r.puv,0,true)+'">'+fN(r.puv,0,true)+'</td><td data-val="'+rnum(r.suv,0,true)+'">'+fN(r.suv,0,true)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td data-val="'+rnum(r.qty)+'">'+fN(r.qty)+'</td><td data-val="'+rnum(r.sales)+'">'+fM(r.sales)+'</td></tr>';});
     document.getElementById('ttb').innerHTML=th;
   } else {document.getElementById('ttb').innerHTML='<tr><td colspan="9" class="empty-state">无数据</td></tr>';}
   // Enhanced Analysis
@@ -1521,14 +1523,16 @@ function _cellStyle(bgEl,colorEl){
   s.alignment={horizontal:ha,vertical:'center',wrapText:true};
   return s;
 }
-// 把网页展示文案转成可计算的真实数值：去$、去千位逗号、万→×10000；% 保留以便Excel识别百分比
+// 把网页展示文案转成可计算的真实数值（仅当单元格无 data-val 时作回退）：
+// 处理 $ 逗号、↑↓ 涨跌箭头与 %、W/万/M 缩写
 function toCellValue(raw){
   let s=String(raw==null?'':raw).trim();
   if(s===''||s==='-')return '';
-  let wan=s.match(/([\d.]+)\s*万/);
-  if(wan)return parseFloat(wan[1])*10000;
-  let cleaned=s.replace(/[$,\s]/g,'');
-  if(/^-?\d+(\.\d+)?$/.test(cleaned))return parseFloat(cleaned);
+  let neg=s.indexOf('↓')>=0||s.indexOf('▼')>=0;
+  let cleaned=s.replace(/[↑↓▲▼$%\s]/g,'');
+  let wm=cleaned.match(/([\d.]+)[Ww万]/);
+  if(wm)return parseFloat(wm[1])*(/m/i.test(cleaned)?1e6:1e4);
+  if(/^-?\d+(\.\d+)?$/.test(cleaned)){let n=parseFloat(cleaned);return neg?-n:n;}
   return s;
 }
 function exportXLSXFromTable(opt){
@@ -1551,7 +1555,10 @@ function exportXLSXFromTable(opt){
       let raw;
       if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)raw=t;else if(cls.indexOf('down')>=0)raw='-'+t;else raw=t;}
       else raw=td.textContent.trim();
-      let val=toCellValue(raw);
+      let dv=td.getAttribute('data-val');
+      let val;
+      if(dv!==null&&dv!==''){val=parseFloat(dv);}
+      else val=toCellValue(raw);
       row.push(val);
       styles.push({r:dataRow+1,c:pos,s:_cellStyle(td,sp||td)});
       let w=Math.max(String(val).length,headerVals[pos]?headerVals[pos].length:0);
@@ -1664,48 +1671,48 @@ async function ac(){
   let days=d.period?Math.round((new Date(d.period.end)-new Date(d.period.start))/864e5)+1:1;
   let h='';
   d.cat_list.forEach(v=>{
-    h+='<tr><td>'+v.name+'</td><td>'+fM(v.qty>0?v.sales/v.qty:0)+'</td>';
+    h+='<tr><td>'+v.name+'</td><td data-val="'+rnum(v.qty>0?v.sales/v.qty:0)+'">'+fM(v.qty>0?v.sales/v.qty:0)+'</td>';
     // ── 销额组：本期 → 占比 → 同环比 → 前两月（总额/日均/占比） ──
-    h+='<td>'+fM(v.sales)+'</td>';
+    h+='<td data-val="'+rnum(v.sales)+'">'+fM(v.sales)+'</td>';
     h+='<td>'+fP(v.sales_share)+'</td>';
-    h+='<td>'+fM(v.yoy_sales)+'</td>';
+    h+='<td data-val="'+rnum(v.yoy_sales)+'">'+fM(v.yoy_sales)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fM(v.mom_sales)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_sales)+'">'+fM(v.mom_sales)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM(v.prev_sales[i]||0)+'</td>';
-    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td>'+fM((v.prev_sales[i]||0)/(v.prev_days[i]||1))+'</td>';
+    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td data-val="'+rnum(v.prev_sales[i]||0)+'">'+fM(v.prev_sales[i]||0)+'</td>';
+    for(let i=0;i<(v.prev_sales||[]).length;i++)h+='<td data-val="'+rnum((v.prev_sales[i]||0)/(v.prev_days[i]||1))+'">'+fM((v.prev_sales[i]||0)/(v.prev_days[i]||1))+'</td>';
     for(let i=0;i<(v.prev_sales_share||[]).length;i++)h+='<td>'+fP(v.prev_sales_share[i])+'</td>';
     // ── 毛利 ──
-    h+='<td>'+fM(v.profit)+'</td>';
+    h+='<td data-val="'+rnum(v.profit)+'">'+fM(v.profit)+'</td>';
     h+='<td>'+(v.profit_mom!=null?'<span class="'+cC(v.profit_mom)+'">'+cA(v.profit_mom)+' '+fP(Math.abs(v.profit_mom))+'</span>':'-')+'</td>';
     h+='<td>'+(v.profit_yoy!=null?'<span class="'+cC(v.profit_yoy)+'">'+cA(v.profit_yoy)+' '+fP(Math.abs(v.profit_yoy))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.margin)+'</td>';
     // ── 销量组：本期 → 同环比 → 前两月（总额/日均） → 本期占比 ──
-    h+='<td>'+fN(v.qty)+'</td>';
-    h+='<td>'+fN(v.yoy_qty)+'</td>';
+    h+='<td data-val="'+rnum(v.qty)+'">'+fN(v.qty)+'</td>';
+    h+='<td data-val="'+rnum(v.yoy_qty)+'">'+fN(v.yoy_qty)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.mom_qty)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_qty)+'">'+fN(v.mom_qty)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
-    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN(v.prev_qty[i]||0)+'</td>';
-    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td>'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
+    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td data-val="'+rnum(v.prev_qty[i]||0)+'">'+fN(v.prev_qty[i]||0)+'</td>';
+    for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td data-val="'+rnum((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'">'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
     h+='<td>'+fP(v.qty_share)+'</td></tr>';
   });
-  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td><td>'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td>';
+  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td><td data-val="'+rnum(d.total_qty>0?d.total_sales/d.total_qty:0)+'">'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td>';
   // ── 销额组合计：本期 → 占比 → 同环比 → 前两月 ──
-  h+='<td>'+fM(d.total_sales)+'</td><td>100%</td>';
-  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
-  h+='<td>'+fM(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'</td><td>-</td>';
-  d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);h+='<td>'+fM(ps)+'</td>'});
-  d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fM(ps/pd)+'</td>'});
+  h+='<td data-val="'+rnum(d.total_sales)+'">'+fM(d.total_sales)+'</td><td>100%</td>';
+  h+='<td data-val="'+rnum(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'">'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
+  h+='<td data-val="'+rnum(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'">'+fM(d.cat_list.reduce((s,v)=>s+(v.mom_sales||0),0))+'</td><td>-</td>';
+  d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);h+='<td data-val="'+rnum(ps)+'">'+fM(ps)+'</td>'});
+  d.prev_labels.forEach((l,i)=>{let ps=d.cat_list.reduce((s,v)=>s+(v.prev_sales&&v.prev_sales.length>i?v.prev_sales[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td data-val="'+rnum(ps/pd)+'">'+fM(ps/pd)+'</td>'});
   d.prev_labels.forEach(()=>{h+='<td>100%</td>'});
   // ── 毛利合计 ──
-  h+='<td>'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td>';
+  h+='<td data-val="'+rnum(d.total_profit)+'">'+fM(d.total_profit)+'</td><td>-</td><td>-</td><td>'+fP(d.total_margin)+'</td>';
   // ── 销量组合计：本期 → 同环比 → 前两月 → 占比 ──
-  h+='<td>'+fN(d.total_qty)+'</td>';
-  h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.yoy_qty||0),0))+'</td><td>-</td>';
-  h+='<td>'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td><td>-</td>';
-  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td>'+fN(pq)+'</td>'});
-  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td>'+fN(pq/pd)+'</td>'});
+  h+='<td data-val="'+rnum(d.total_qty)+'">'+fN(d.total_qty)+'</td>';
+  h+='<td data-val="'+rnum(d.cat_list.reduce((s,v)=>s+(v.yoy_qty||0),0))+'">'+fN(d.cat_list.reduce((s,v)=>s+(v.yoy_qty||0),0))+'</td><td>-</td>';
+  h+='<td data-val="'+rnum(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'">'+fN(d.cat_list.reduce((s,v)=>s+(v.mom_qty||0),0))+'</td><td>-</td>';
+  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);h+='<td data-val="'+rnum(pq)+'">'+fN(pq)+'</td>'});
+  d.prev_labels.forEach((l,i)=>{let pq=d.cat_list.reduce((s,v)=>s+(v.prev_qty&&v.prev_qty.length>i?v.prev_qty[i]:0),0);let pd=d.cat_list[0]?d.cat_list[0].prev_days[i]||1:1;h+='<td data-val="'+rnum(pq/pd)+'">'+fN(pq/pd)+'</td>'});
   h+='<td>100%</td></tr>';
   document.getElementById('ctb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-cat');
@@ -1759,7 +1766,7 @@ async function ac(){
     }
     let yoyCell='-';
     if(c.sales_yoy!==null)yoyCell='<span style="color:'+(c.sales_yoy>=0?'#2e7d32':'#c62828')+';font-weight:600;">'+(c.sales_yoy>=0?'▲':'▼')+' '+fP(Math.abs(c.sales_yoy))+'</span>';
-    ana+='<tr><td style="padding:6px 8px;"><b>'+(i+1)+'. '+c.name+'</b></td><td style="padding:6px 8px;text-align:right;font-weight:600;">'+fM(c.sales)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.sales_share)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.margin)+'</td><td style="padding:6px 8px;text-align:center">'+momCell+'</td><td style="padding:6px 8px;text-align:center">'+yoyCell+'</td><td style="padding:6px 8px;font-size:11px">'+diag+'</td></tr>';
+    ana+='<tr><td style="padding:6px 8px;"><b>'+(i+1)+'. '+c.name+'</b></td><td style="padding:6px 8px;text-align:right;font-weight:600;" data-val="'+rnum(c.sales)+'">'+fM(c.sales)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.sales_share)+'</td><td style="padding:6px 8px;text-align:right">'+fP(c.margin)+'</td><td style="padding:6px 8px;text-align:center">'+momCell+'</td><td style="padding:6px 8px;text-align:center">'+yoyCell+'</td><td style="padding:6px 8px;font-size:11px">'+diag+'</td></tr>';
   });
   ana+='</table></div>';
 
@@ -1806,9 +1813,9 @@ async function ac(){
       ana+='<tr>';
       ana+='<td style="font-weight:700;color:#1b5e20;">'+c.name+'</td>';
       ana+='<td style="color:#2e7d32;font-weight:800;white-space:nowrap;">▲ +'+fP(c.sales_mom)+'</td>';
-      ana+='<td style="color:#666;font-size:12px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
+      ana+='<td style="color:#666;font-size:12px;" data-val="'+rnum(c.mom_sales)+'">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
       ana+='<td>'+fP(c.margin)+'</td>';
-      ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;">+'+fM(delta)+'</td>';
+      ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;" data-val="'+rnum(delta)+'">+'+fM(delta)+'</td>';
       ana+='<td style="min-width:220px;">'+spuTd+'</td>';
       ana+='</tr>';
     });
@@ -1827,9 +1834,9 @@ async function ac(){
       ana+='<tr>';
       ana+='<td style="font-weight:700;color:#b71c1c;">'+c.name+'</td>';
       ana+='<td style="color:#c62828;font-weight:800;white-space:nowrap;">▼ '+fP(c.sales_mom)+'</td>';
-      ana+='<td style="color:#666;font-size:12px;">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
+      ana+='<td style="color:#666;font-size:12px;" data-val="'+rnum(c.mom_sales)+'">'+fM(c.mom_sales)+' → '+fM(c.sales)+'</td>';
       ana+='<td>'+fP(c.margin)+'</td>';
-      ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;">'+fM(delta)+'</td>';
+      ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;" data-val="'+rnum(delta)+'">'+fM(delta)+'</td>';
       ana+='<td style="font-size:11px;color:#c62828;">⚡ '+reason+'</td>';
       ana+='<td style="min-width:220px;">'+spuTd+'</td>';
       ana+='</tr>';
@@ -1871,7 +1878,7 @@ async function ac(){
       let row='<tr><td style="padding:6px 8px;font-weight:600">'+c.name+'</td><td style="padding:6px 8px;text-align:center;color:#e74c3c;font-weight:700">'+c.streak+'期</td>';
       // 每期销售额
       for(let pi=0;pi<maxPeriods;pi++){
-        if(pi<st.length)row+='<td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums">'+fM(st[pi])+'</td>';
+        if(pi<st.length)row+='<td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums" data-val="'+rnum(st[pi])+'">'+fM(st[pi])+'</td>';
         else row+='<td style="padding:6px 8px"></td>';
       }
       // 每期降幅
@@ -2077,7 +2084,7 @@ async function as(){
       else if(v.sales_mom<0&&v.sales_yoy<0)trend='<span class="insight-tag neg">持续下滑</span>';
       else trend='<span class="insight-tag warn">波动中</span>';
     }
-    ana+='<tr><td style="padding:5px 8px"><b>'+v.spu+'</b></td><td style="padding:5px 8px;text-align:right">'+fM(v.sales)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.sales_share)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.margin)+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_mom!=null?'<span class="'+(v.sales_mom>=0?'up':'down')+'">'+(v.sales_mom>=0?'↑':'↓')+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_yoy!=null?'<span class="'+(v.sales_yoy>=0?'up':'down')+'">'+(v.sales_yoy>=0?'↑':'↓')+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td><td style="padding:5px 8px;font-size:11px">'+trend+'</td></tr>';
+    ana+='<tr><td style="padding:5px 8px"><b>'+v.spu+'</b></td><td style="padding:5px 8px;text-align:right" data-val="'+rnum(v.sales)+'">'+fM(v.sales)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.sales_share)+'</td><td style="padding:5px 8px;text-align:right">'+fP(v.margin)+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_mom!=null?'<span class="'+(v.sales_mom>=0?'up':'down')+'">'+(v.sales_mom>=0?'↑':'↓')+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td><td style="padding:5px 8px;text-align:center">'+(v.sales_yoy!=null?'<span class="'+(v.sales_yoy>=0?'up':'down')+'">'+(v.sales_yoy>=0?'↑':'↓')+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td><td style="padding:5px 8px;font-size:11px">'+trend+'</td></tr>';
   });
   ana+='</table></div>';
 
@@ -2106,9 +2113,9 @@ async function as(){
         ana+='<td style="font-weight:700;color:#1b5e20;">'+v.spu+'</td>';
         ana+='<td style="font-size:12px;">'+v.category+'</td>';
         ana+='<td style="color:#2e7d32;font-weight:800;white-space:nowrap;">▲ +'+fP(v.sales_mom)+'</td>';
-        ana+='<td style="color:#666;font-size:12px;">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
+        ana+='<td style="color:#666;font-size:12px;" data-val="'+rnum(v.mom_sales)+'">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
         ana+='<td>'+fP(v.margin)+'</td>';
-        ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;">+'+fM(delta)+'</td>';
+        ana+='<td style="font-weight:700;color:#1b5e20;white-space:nowrap;" data-val="'+rnum(delta)+'">+'+fM(delta)+'</td>';
         ana+='</tr>';
       });
       ana+='</tbody></table>';
@@ -2138,9 +2145,9 @@ async function as(){
         ana+='<td style="font-weight:700;color:#b71c1c;">'+v.spu+'</td>';
         ana+='<td style="font-size:12px;">'+v.category+'</td>';
         ana+='<td style="color:#c62828;font-weight:800;white-space:nowrap;">▼ '+fP(v.sales_mom)+'</td>';
-        ana+='<td style="color:#666;font-size:12px;">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
+        ana+='<td style="color:#666;font-size:12px;" data-val="'+rnum(v.mom_sales)+'">'+fM(v.mom_sales)+' → '+fM(v.sales)+'</td>';
         ana+='<td>'+fP(v.margin)+'</td>';
-        ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;">'+fM(delta)+'</td>';
+        ana+='<td style="font-weight:700;color:#b71c1c;white-space:nowrap;" data-val="'+rnum(delta)+'">'+fM(delta)+'</td>';
         ana+='</tr>';
       });
       ana+='</tbody></table>';
@@ -2162,8 +2169,8 @@ async function as(){
         ana+='<tr>';
         ana+='<td style="font-weight:700;color:#0d47a1;">'+v.spu+'</td>';
         ana+='<td style="font-size:12px;">'+v.category+'</td>';
-        ana+='<td style="font-weight:600;">'+fM(v.sales)+'</td>';
-        ana+='<td>'+fN(v.qty)+'</td>';
+        ana+='<td style="font-weight:600;" data-val="'+rnum(v.sales)+'">'+fM(v.sales)+'</td>';
+        ana+='<td data-val="'+rnum(v.qty)+'">'+fN(v.qty)+'</td>';
         ana+='<td>'+fP(v.margin)+'</td>';
         ana+='</tr>';
       });
@@ -2185,16 +2192,16 @@ function renderSpuBody(list){
     let tierHtml=v.tier&&v.tier!=='-'?'<span class="tier-tag tier-'+v.tier.replace(/[^\u4e00-\u9fa5a-zA-Z]/g,'')+'">'+v.tier+'</span>':'-';
     h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td>'+tierHtml+'</td><td>'+v.category+'</td><td>'+v.shop+'</td>';
     h+='<td>'+fP(v.qty_share)+'</td>';
-    h+='<td>'+fN(v.qty)+'</td>';
-    h+='<td>'+fN(v.yoy_qty)+'</td>';
+    h+='<td data-val="'+rnum(v.qty)+'">'+fN(v.qty)+'</td>';
+    h+='<td data-val="'+rnum(v.yoy_qty)+'">'+fN(v.yoy_qty)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.mom_qty)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_qty)+'">'+fN(v.mom_qty)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.sales_share)+'</td>';
-    h+='<td>'+fM(v.sales)+'</td>';
-    h+='<td>'+fM(v.yoy_sales)+'</td>';
+    h+='<td data-val="'+rnum(v.sales)+'">'+fM(v.sales)+'</td>';
+    h+='<td data-val="'+rnum(v.yoy_sales)+'">'+fM(v.yoy_sales)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fM(v.mom_sales)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_sales)+'">'+fM(v.mom_sales)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.margin)+'</td></tr>';
   });
@@ -2247,16 +2254,16 @@ async function at(){
   let h='';
   d.top30.forEach(v=>{
     let vBadge=v.variantCount>1?' <span class="var-badge" title="'+(v.variantList||[]).join(', ')+'">('+v.variantCount+'变体)</span>':'';
-    h+='<tr><td>'+v.rank+'</td><td>'+v.category+'</td><td>'+v.spu+vBadge+'</td><td>'+(v.life||'-')+'</td><td>'+(v.tier||'-')+'</td><td>'+fN(v.big||0)+'</td><td>'+fN(v.mom_big||0)+'</td><td>'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
+    h+='<tr><td>'+v.rank+'</td><td>'+v.category+'</td><td>'+v.spu+vBadge+'</td><td>'+(v.life||'-')+'</td><td>'+(v.tier||'-')+'</td><td data-val="'+rnum(v.big||0)+'">'+fN(v.big||0)+'</td><td data-val="'+rnum(v.mom_big||0)+'">'+fN(v.mom_big||0)+'</td><td data-val="'+rnum(v.sales)+'">'+fM(v.sales)+'</td><td>'+fP(v.sales_share)+'</td>';
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fM(v.mom_sales||0)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_sales||0)+'">'+fM(v.mom_sales||0)+'</td>';
     h+='<td>'+(v.sales_yoy!=null?'<span class="'+cC(v.sales_yoy)+'">'+cA(v.sales_yoy)+' '+fP(Math.abs(v.sales_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fM(v.yoy_sales||0)+'</td>';
-    h+='<td>'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
+    h+='<td data-val="'+rnum(v.yoy_sales||0)+'">'+fM(v.yoy_sales||0)+'</td>';
+    h+='<td data-val="'+rnum(v.qty)+'">'+fN(v.qty)+'</td><td>'+fP(v.qty_share)+'</td>';
     h+='<td>'+(v.qty_mom!=null?'<span class="'+cC(v.qty_mom)+'">'+cA(v.qty_mom)+' '+fP(Math.abs(v.qty_mom))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.mom_qty||0)+'</td>';
+    h+='<td data-val="'+rnum(v.mom_qty||0)+'">'+fN(v.mom_qty||0)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
-    h+='<td>'+fN(v.yoy_qty||0)+'</td></tr>';
+    h+='<td data-val="'+rnum(v.yoy_qty||0)+'">'+fN(v.yoy_qty||0)+'</td></tr>';
   });
   document.getElementById('t30tb').innerHTML=h||'<tr><td colspan="19" class="empty-state">无数据</td></tr>';
   applyColVisibility('col-panel-top30');
@@ -2309,24 +2316,24 @@ async function aca(){
     periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];if(v!==null&&v!==undefined&&v>0)salesVals.push(v);});
     let sMin=salesVals.length>0?Math.min(...salesVals):0,sMax=salesVals.length>0?Math.max(...salesVals):0;
     h+='<tr><td style="font-weight:600">'+row.shop+'</td>';
-    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];let hc=heatColor(v,sMin,sMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(v)+'</td>';});
+    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];let hc=heatColor(v,sMin,sMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(v)+'">'+fM(v)+'</td>';});
     let diff=row.diff_sales||0;
-    h+='<td><span class="'+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fM(diff)+'</span></td>';
+    h+='<td data-val="'+rnum(diff)+'"><span class="'+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fM(diff)+'</span></td>';
     h+='<td>'+(row.diff_sales_pct!=null?'<span class="'+cC(row.diff_sales_pct)+'">'+cA(row.diff_sales_pct)+' '+fP(Math.abs(row.diff_sales_pct))+'</span>':'-')+'</td>';
-    periods.forEach((p,i)=>{h+='<td>'+fN(row['p'+i+'_qty'])+'</td>';});
+    periods.forEach((p,i)=>{h+='<td data-val="'+rnum(row['p'+i+'_qty'])+'">'+fN(row['p'+i+'_qty'])+'</td>';});
     h+='</tr>';
   });
   let totalSalesVals=[];
   periods.forEach(p=>{if(p.total_sales>0)totalSalesVals.push(p.total_sales);});
   let tMin=totalSalesVals.length>0?Math.min(...totalSalesVals):0,tMax=totalSalesVals.length>0?Math.max(...totalSalesVals):0;
   h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
-  periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(p.total_sales)+'</td>';});
+  periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(p.total_sales)+'">'+fM(p.total_sales)+'</td>';});
   let li=periods.length-1,li_1=periods.length-2;
   let p0t=li>=0?periods[li].total_sales:0,p1t=li_1>=0?periods[li_1].total_sales:0;
   let tdiff=p0t-p1t;
-  h+='<td><span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'+':'')+fM(tdiff)+'</span></td>';
+  h+='<td data-val="'+rnum(tdiff)+'"><span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'+':'')+fM(tdiff)+'</span></td>';
   h+='<td>'+(p1t!==0?'<span class="'+cC(tdiff/p1t)+'">'+cA(tdiff/p1t)+' '+fP(Math.abs(tdiff/p1t))+'</span>':'-')+'</td>';
-  periods.forEach(p=>{h+='<td>'+fN(p.total_qty)+'</td>';});
+  periods.forEach(p=>{h+='<td data-val="'+rnum(p.total_qty)+'">'+fN(p.total_qty)+'</td>';});
   h+='</tr>';
   document.getElementById('catb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   let ana='';
@@ -2361,7 +2368,7 @@ async function aca(){
       let diff=r.diff_sales||0;
       let status=diff>0?'<span class="insight-tag pos">增长</span>':(diff<0?'<span class="insight-tag neg">下滑</span>':'<span class="insight-tag neutral">持平</span>');
       if(diff>r['p'+li_1+'_sales']*0.2)status+='<span class="insight-tag pos"> 强劲</span>';
-      ana+='<tr><td style="padding:5px 8px">'+r.shop+'</td><td style="padding:5px 8px;text-align:right">'+fM(r['p'+li+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:right">'+fM(r['p'+li_1+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:center">'+(diff>=0?'<span class="up">+':'<span class="down">')+fM(Math.abs(diff))+'</span></td><td style="padding:5px 8px;font-size:11px">'+status+'</td></tr>';
+      ana+='<tr><td style="padding:5px 8px">'+r.shop+'</td><td style="padding:5px 8px;text-align:right" data-val="'+rnum(r['p'+li+'_sales']||0)+'">'+fM(r['p'+li+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:right" data-val="'+rnum(r['p'+li_1+'_sales']||0)+'">'+fM(r['p'+li_1+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:center" data-val="'+rnum(Math.abs(diff))+'">'+(diff>=0?'<span class="up">+':'<span class="down">')+fM(Math.abs(diff))+'</span></td><td style="padding:5px 8px;font-size:11px">'+status+'</td></tr>';
     });
     ana+='</table></div>';
   }
@@ -2409,24 +2416,24 @@ async function asc(){
     periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];if(v!==null&&v!==undefined&&v>0)salesVals.push(v);});
     let sMin=salesVals.length>0?Math.min(...salesVals):0,sMax=salesVals.length>0?Math.max(...salesVals):0;
     h+='<tr><td style="font-weight:600">'+row.cat+'</td>';
-    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];let hc=heatColor(v,sMin,sMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(v)+'</td>';});
+    periods.forEach((p,i)=>{let v=row['p'+i+'_sales'];let hc=heatColor(v,sMin,sMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(v)+'">'+fM(v)+'</td>';});
     let diff=row.diff_sales||0;
-    h+='<td><span class="'+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fM(diff)+'</span></td>';
+    h+='<td data-val="'+rnum(diff)+'"><span class="'+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fM(diff)+'</span></td>';
     h+='<td>'+(row.diff_sales_pct!=null?'<span class="'+cC(row.diff_sales_pct)+'">'+cA(row.diff_sales_pct)+' '+fP(Math.abs(row.diff_sales_pct))+'</span>':'-')+'</td>';
-    periods.forEach((p,i)=>{h+='<td>'+fN(row['p'+i+'_qty'])+'</td>';});
+    periods.forEach((p,i)=>{h+='<td data-val="'+rnum(row['p'+i+'_qty'])+'">'+fN(row['p'+i+'_qty'])+'</td>';});
     h+='</tr>';
   });
   let totalSalesVals=[];
   periods.forEach(p=>{if(p.total_sales>0)totalSalesVals.push(p.total_sales);});
   let tMin=totalSalesVals.length>0?Math.min(...totalSalesVals):0,tMax=totalSalesVals.length>0?Math.max(...totalSalesVals):0;
   h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
-  periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'">'+fM(p.total_sales)+'</td>';});
+  periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(p.total_sales)+'">'+fM(p.total_sales)+'</td>';});
   let li=periods.length-1,li_1=periods.length-2;
   let p0t=li>=0?periods[li].total_sales:0,p1t=li_1>=0?periods[li_1].total_sales:0;
   let tdiff=p0t-p1t;
-  h+='<td><span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'+':'')+fM(tdiff)+'</span></td>';
+  h+='<td data-val="'+rnum(tdiff)+'"><span class="'+(tdiff>=0?'up':'down')+'">'+(tdiff>=0?'+':'')+fM(tdiff)+'</span></td>';
   h+='<td>'+(p1t!==0?'<span class="'+cC(tdiff/p1t)+'">'+cA(tdiff/p1t)+' '+fP(Math.abs(tdiff/p1t))+'</span>':'-')+'</td>';
-  periods.forEach(p=>{h+='<td>'+fN(p.total_qty)+'</td>';});
+  periods.forEach(p=>{h+='<td data-val="'+rnum(p.total_qty)+'">'+fN(p.total_qty)+'</td>';});
   h+='</tr>';
   document.getElementById('scatb').innerHTML=h||'<tr><td colspan="99" class="empty-state">无数据</td></tr>';
   let ana='';
@@ -2455,7 +2462,7 @@ async function asc(){
       let diff=r.diff_sales||0;
       let status=diff>0?'<span class="insight-tag pos">增长</span>':(diff<0?'<span class="insight-tag neg">下滑</span>':'<span class="insight-tag neutral">持平</span>');
       if(diff>r['p'+li_1+'_sales']*0.2)status+='<span class="insight-tag pos"> 强劲</span>';
-      ana+='<tr><td style="padding:5px 8px">'+r.cat+'</td><td style="padding:5px 8px;text-align:right">'+fM(r['p'+li+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:right">'+fM(r['p'+li_1+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:center">'+(diff>=0?'<span class="up">+':'<span class="down">')+fM(Math.abs(diff))+'</span></td><td style="padding:5px 8px;font-size:11px">'+status+'</td></tr>';
+      ana+='<tr><td style="padding:5px 8px">'+r.cat+'</td><td style="padding:5px 8px;text-align:right" data-val="'+rnum(r['p'+li+'_sales']||0)+'">'+fM(r['p'+li+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:right" data-val="'+rnum(r['p'+li_1+'_sales']||0)+'">'+fM(r['p'+li_1+'_sales']||0)+'</td><td style="padding:5px 8px;text-align:center" data-val="'+rnum(Math.abs(diff))+'">'+(diff>=0?'<span class="up">+':'<span class="down">')+fM(Math.abs(diff))+'</span></td><td style="padding:5px 8px;font-size:11px">'+status+'</td></tr>';
     });
     ana+='</table></div>';
   }
@@ -2483,9 +2490,9 @@ async function asc(){
       ana+='<td style="padding:5px 8px;text-align:center"><span id="'+riskId+'-btn" style="display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;background:#e74c3c;color:#fff;border-radius:3px;font-size:12px">+</span></td>';
       ana+='<td style="padding:5px 8px;font-weight:600">'+c.cat+'</td>';
       ana+='<td style="padding:5px 8px;text-align:center"><span class="down">▼ '+fP(Math.abs(c.sales_pct))+'</span></td>';
-      ana+='<td style="padding:5px 8px;text-align:right">'+fM(c.prev_sales)+' → '+fM(c.curr_sales)+'</td>';
-      ana+='<td style="padding:5px 8px;text-align:right">'+fP(c.margin)+'<br><span style="font-size:11px;color:#666">'+fM(c.profit_chg)+'</span></td>';
-      ana+='<td style="padding:5px 8px;text-align:right;color:#c62828;font-weight:700;">'+fM(c.sales_chg)+'</td>';
+      ana+='<td style="padding:5px 8px;text-align:right" data-val="'+rnum(c.prev_sales)+'">'+fM(c.prev_sales)+' → '+fM(c.curr_sales)+'</td>';
+      ana+='<td style="padding:5px 8px;text-align:right" data-val="'+rnum(c.profit_chg)+'">'+fP(c.margin)+'<br><span style="font-size:11px;color:#666">'+fM(c.profit_chg)+'</span></td>';
+      ana+='<td style="padding:5px 8px;text-align:right;color:#c62828;font-weight:700;" data-val="'+rnum(c.sales_chg)+'">'+fM(c.sales_chg)+'</td>';
       ana+='<td style="padding:5px 8px;font-size:12px">'+c.reason+'</td>';
       ana+='<td style="padding:5px 8px;">'+topSpuHtml+'</td>';
       ana+='</tr>';
@@ -2497,7 +2504,7 @@ async function asc(){
       } else {
         c.spus.forEach(s=>{
           let advice=s.sales_pct<-0.5?'严重下滑，建议排查差评/竞品/库存':(s.sales_pct<-0.3?'明显下滑，需促销或补流':'持续下滑，加强监控');
-          ana+='<tr><td style="padding:4px 8px;font-weight:600">'+s.spu+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.sales)+'</td><td style="padding:4px 8px;text-align:right">'+fM(s.prev_sales)+'</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;">'+(s.sales_chg>=0?'+':'')+fM(s.sales_chg)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.qty)+'</td><td style="padding:4px 8px;text-align:right">'+fN(s.prev_qty)+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;">'+(s.qty_chg>=0?'<span class="up">+':'<span class="down">')+fN(Math.abs(s.qty_chg))+'</span></td><td style="padding:4px 8px;font-size:11px">'+advice+'</td></tr>';
+          ana+='<tr><td style="padding:4px 8px;font-weight:600">'+s.spu+'</td><td style="padding:4px 8px;text-align:right" data-val="'+rnum(s.sales)+'">'+fM(s.sales)+'</td><td style="padding:4px 8px;text-align:right" data-val="'+rnum(s.prev_sales)+'">'+fM(s.prev_sales)+'</td><td style="padding:4px 8px;text-align:center;color:#c62828;font-weight:700;" data-val="'+rnum(s.sales_chg)+'">'+(s.sales_chg>=0?'+':'')+fM(s.sales_chg)+'</td><td style="padding:4px 8px;text-align:right" data-val="'+rnum(s.qty)+'">'+fN(s.qty)+'</td><td style="padding:4px 8px;text-align:right" data-val="'+rnum(s.prev_qty)+'">'+fN(s.prev_qty)+'</td><td style="padding:4px 8px;text-align:center;font-weight:700;" data-val="'+rnum(Math.abs(s.qty_chg))+'">'+(s.qty_chg>=0?'<span class="up">+':'<span class="down">')+fN(Math.abs(s.qty_chg))+'</span></td><td style="padding:4px 8px;font-size:11px">'+advice+'</td></tr>';
         });
       }
       ana+='</tbody></table></td></tr>';
@@ -2573,8 +2580,8 @@ function renderLifecycleCompare(rows,aStart,aEnd,bStart,bEnd){
     let salesTotalMom=row.aSales>0?(row.bSales-row.aSales)/row.aSales:null;
     let trStyle=row.isTotal?' style="font-weight:700;background:#f5f7fa"':'';
     html+=`<tr${trStyle}><td>${row.stage}</td>
-      <td>${fN(row.aQty)}</td><td>${fM(row.aSales)}</td><td>${fP(row.aShare)}</td><td>${fN(row.aAvgQty,1)}</td><td>${fM(row.aAvgSales)}</td>
-      <td>${fN(row.bQty)}</td><td>${fM(row.bSales)}</td><td>${fP(row.bShare)}</td><td>${fN(row.bAvgQty,1)}</td><td>${fM(row.bAvgSales)}</td>
+      <td data-val="'+rnum(row.aQty)+'">${fN(row.aQty)}</td><td data-val="'+rnum(row.aSales)+'">${fM(row.aSales)}</td><td>${fP(row.aShare)}</td><td data-val="'+rnum(row.aAvgQty,1)+'">${fN(row.aAvgQty,1)}</td><td data-val="'+rnum(row.aAvgSales)+'">${fM(row.aAvgSales)}</td>
+      <td data-val="'+rnum(row.bQty)+'">${fN(row.bQty)}</td><td data-val="'+rnum(row.bSales)+'">${fM(row.bSales)}</td><td>${fP(row.bShare)}</td><td data-val="'+rnum(row.bAvgQty,1)+'">${fN(row.bAvgQty,1)}</td><td data-val="'+rnum(row.bAvgSales)+'">${fM(row.bAvgSales)}</td>
       <td class="${cC(shareDiff)}">${cA(shareDiff)}${fP(Math.abs(shareDiff))}</td>
       <td class="${cC(qtyMom)}">${cA(qtyMom)}${qtyMom!==null?fP(Math.abs(qtyMom)):'-'}</td>
       <td class="${cC(salesMom)}">${cA(salesMom)}${salesMom!==null?fP(Math.abs(salesMom)):'-'}</td>
