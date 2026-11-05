@@ -1521,6 +1521,16 @@ function _cellStyle(bgEl,colorEl){
   s.alignment={horizontal:ha,vertical:'center',wrapText:true};
   return s;
 }
+// 把网页展示文案转成可计算的真实数值：去$、去千位逗号、万→×10000；% 保留以便Excel识别百分比
+function toCellValue(raw){
+  let s=String(raw==null?'':raw).trim();
+  if(s===''||s==='-')return '';
+  let wan=s.match(/([\d.]+)\s*万/);
+  if(wan)return parseFloat(wan[1])*10000;
+  let cleaned=s.replace(/[$,\s]/g,'');
+  if(/^-?\d+(\.\d+)?$/.test(cleaned))return parseFloat(cleaned);
+  return s;
+}
 function exportXLSXFromTable(opt){
   let body=document.getElementById(opt.bodyId);if(!body)return;
   let table=body.closest('table');if(!table)return;
@@ -1538,12 +1548,13 @@ function exportXLSXFromTable(opt){
       let td=tds[ci];
       if(!td){row.push('');pos++;return;}
       let sp=td.querySelector('span');
-      let val;
-      if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)val=t;else if(cls.indexOf('down')>=0)val='-'+t;else val=t;}
-      else val=td.textContent.trim();
+      let raw;
+      if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)raw=t;else if(cls.indexOf('down')>=0)raw='-'+t;else raw=t;}
+      else raw=td.textContent.trim();
+      let val=toCellValue(raw);
       row.push(val);
       styles.push({r:dataRow+1,c:pos,s:_cellStyle(td,sp||td)});
-      let w=Math.max((val||'').length,headerVals[pos]?headerVals[pos].length:0);
+      let w=Math.max(String(val).length,headerVals[pos]?headerVals[pos].length:0);
       if(w>colW[pos])colW[pos]=Math.min(w+2,40);
       pos++;
     });
