@@ -1518,9 +1518,7 @@ function _cellStyle(bgEl,colorEl){
   let fw=c.fontWeight;
   if(fw==='bold'||parseInt(fw,10)>=600)font.bold=true;
   if(Object.keys(font).length)s.font=font;
-  let ha=(b.textAlign||'left').toLowerCase();
-  if(ha==='start'||ha==='left')ha='left';else if(ha==='end'||ha==='right')ha='right';else if(ha.indexOf('center')>=0)ha='center';else ha='left';
-  s.alignment={horizontal:ha,vertical:'center',wrapText:true};
+  s.alignment={horizontal:'center',vertical:'center',wrapText:true};
   return s;
 }
 // 把网页展示文案转成可计算的真实数值（仅当单元格无 data-val 时作回退）：
@@ -1556,12 +1554,18 @@ function exportXLSXFromTable(opt){
       if(sp){let t=sp.textContent.replace(/[↑↓]/g,'').trim();let cls=sp.className;if(cls.indexOf('up')>=0)raw=t;else if(cls.indexOf('down')>=0)raw='-'+t;else raw=t;}
       else raw=td.textContent.trim();
       let dv=td.getAttribute('data-val');
-      let val;
-      if(dv!==null&&dv!==''){val=parseFloat(dv);}
+      let val,fromDataVal=false;
+      if(dv!==null&&dv!==''){val=parseFloat(dv);fromDataVal=true;}
       else val=toCellValue(raw);
+      let isNum=typeof val==='number'&&isFinite(val);
+      let isPct=raw.indexOf('%')>=0;
+      if(isNum&&isPct&&!fromDataVal)val=val/100; // 百分点→比例小数(配合百分比格式,仍可计算)
       row.push(val);
-      styles.push({r:dataRow+1,c:pos,s:_cellStyle(td,sp||td)});
-      let w=Math.max(String(val).length,headerVals[pos]?headerVals[pos].length:0);
+      let st=_cellStyle(td,sp||td);
+      if(isNum)st.numFmt=isPct?'0.00%':'0.00';
+      styles.push({r:dataRow+1,c:pos,s:st});
+      let disp=isNum?(isPct?(val*100).toFixed(2)+'%':val.toFixed(2)):String(val);
+      let w=Math.max(disp.length,headerVals[pos]?headerVals[pos].length:0);
       if(w>colW[pos])colW[pos]=Math.min(w+2,40);
       pos++;
     });
