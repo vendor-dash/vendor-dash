@@ -969,11 +969,22 @@ function processProductSpu(start,end,shop,cat,search,tiers,dtiers){
     return false;
   });
 
+  function bigMap(rows,s,e,shp){
+    let shops=shp?shp.split(',').map(x=>x.trim()):[];
+    let m={};
+    for(let r of (rows||[])){
+      let d=r[0];if(!d||d<s||d>e)continue;
+      if(shops.length&&shops.indexOf(r[1])<0)continue;
+      m[r[2]]=(m[r[2]]||0)+(r[3]||0);
+    }
+    return m;
+  }
+  let bigCurr=bigMap(BIGORDER.rows||[],start,end,shop);
   let result=spu_list.map((v,i)=>{
     let mv=m_spu[v.spu]||{qty:0,sales:0},yv=y_spu[v.spu]||{qty:0,sales:0};
     return{
       rank:i+1,spu:v.spu,category:v.category,shop:v.shop,
-      qty:v.qty,sales:v.sales,profit:v.profit,
+      qty:v.qty,big:bigCurr[v.spu]||0,sales:v.sales,profit:v.profit,
       mom_qty:mv.qty,mom_sales:mv.sales,
       yoy_qty:yv.qty,yoy_sales:yv.sales,
       qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
@@ -2049,11 +2060,11 @@ async function as(){
   function addCol(group,label){window._spuColDefs.push({g:group,l:label});return label;}
   let th=[
     addCol('基础','排名'),addCol('基础','SPU'),addCol('基础','部门分层'),addCol('基础','品类'),addCol('基础','店铺'),
-    addCol('销量','销量占比'),addCol('销量','本期销量'),addCol('销量','同期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比'),
+    addCol('销量','销量占比'),addCol('销量','本期销量'),addCol('销量','大单件数'),addCol('销量','同期销量'),addCol('销量','销量同比'),addCol('销量','环比期销量'),addCol('销量','销量环比'),
     addCol('销额','销售额占比'),addCol('销额','本期销售额'),addCol('销额','同期销售额'),addCol('销额','销售额同比'),addCol('销额','环比期销售额'),addCol('销额','销售额环比'),
     addCol('毛利','毛利率')
   ];
-  window._spuColFields=['rank','spu','tier','category','shop','qty_share','qty','yoy_qty','qty_yoy','mom_qty','qty_mom','sales_share','sales','yoy_sales','sales_yoy','mom_sales','sales_mom','margin'];
+  window._spuColFields=['rank','spu','tier','category','shop','qty_share','qty','big','yoy_qty','qty_yoy','mom_qty','qty_mom','sales_share','sales','yoy_sales','sales_yoy','mom_sales','sales_mom','margin'];
   document.getElementById('sth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'" onclick="sortSpu('+i+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind" id="spuSort'+i+'"></span></th>').join('');
   buildColPanel('col-panel-spu',window._spuColDefs);
   window._spuData=d;
@@ -2197,6 +2208,7 @@ function renderSpuBody(list){
     h+='<tr><td>'+v.rank+'</td><td><b>'+v.spu+'</b>'+vlabel+'</td><td>'+tierHtml+'</td><td>'+v.category+'</td><td>'+v.shop+'</td>';
     h+='<td>'+fP(v.qty_share)+'</td>';
     h+='<td data-val="'+rnum(v.qty)+'">'+fN(v.qty)+'</td>';
+    h+='<td data-val="'+rnum(v.big||0)+'">'+fN(v.big||0)+'</td>';
     h+='<td data-val="'+rnum(v.yoy_qty)+'">'+fN(v.yoy_qty)+'</td>';
     h+='<td>'+(v.qty_yoy!=null?'<span class="'+cC(v.qty_yoy)+'">'+cA(v.qty_yoy)+' '+fP(Math.abs(v.qty_yoy))+'</span>':'-')+'</td>';
     h+='<td data-val="'+rnum(v.mom_qty)+'">'+fN(v.mom_qty)+'</td>';
@@ -2209,7 +2221,7 @@ function renderSpuBody(list){
     h+='<td>'+(v.sales_mom!=null?'<span class="'+cC(v.sales_mom)+'">'+cA(v.sales_mom)+' '+fP(Math.abs(v.sales_mom))+'</span>':'-')+'</td>';
     h+='<td>'+fP(v.margin)+'</td></tr>';
   });
-  document.getElementById('stb').innerHTML=h||'<tr><td colspan="18" class="empty-state">无数据</td></tr>';
+  document.getElementById('stb').innerHTML=h||'<tr><td colspan="19" class="empty-state">无数据</td></tr>';
 }
 
 // SPU 表头点击排序
