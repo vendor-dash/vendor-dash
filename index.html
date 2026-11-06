@@ -1357,7 +1357,7 @@ async function atf(){
     label:(ctx)=>{let i=ctx.dataIndex,v=ctx.parsed.y;let isC=ctx.dataset.label.indexOf(cl)>=0;let val=(ctx.dataset.label.indexOf('销售额')>=0)?fM(v):fN(v,0,true);if(isC){let cd=(d.cdates&&d.cdates[i])?d.cdates[i]:null;return ctx.dataset.label+(cd?(' ('+cd+')'):'')+': '+val;}return ctx.dataset.label+': '+val;}
   }}},scales:{x:{ticks:{maxTicksLimit:20}},y:{type:'linear',display:true,position:'left',title:{display:true,text:'平台UV'},min:yMin},y1:{type:'linear',display:true,position:'right',title:{display:true,text:'店铺UV'},min:y1Min,grid:{drawOnChartArea:false}},y2:{type:'linear',display:true,position:'right',title:{display:true,text:'销售额'},min:sMin*0.85,grid:{drawOnChartArea:false}}}}});
   // Table
-  document.getElementById('tth').innerHTML='<th>日期</th><th>平台</th><th>店铺</th><th>平台UV</th><th>店铺UV</th><th>店铺UV占比</th><th>转化率</th><th>销量</th><th>销售额</th>';
+  document.getElementById('tth').innerHTML=['日期','平台','店铺','平台UV','店铺UV','店铺UV占比','转化率','销量','销售额'].map((x,i)=>'<th data-col="'+i+'" onclick="sortTableCols(\'ttb\','+i+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind"></span></th>').join('');
   if(d.detail&&d.detail.length){
     let th='';
     d.detail.forEach(r=>{th+='<tr><td>'+r.date+'</td><td>'+r.platform+'</td><td>'+r.shop+'</td><td data-val="'+rnum(r.puv,0,true)+'">'+fN(r.puv,0,true)+'</td><td data-val="'+rnum(r.suv,0,true)+'">'+fN(r.suv,0,true)+'</td><td>'+fP(r.suv_share)+'</td><td>'+fP(r.cvr,2)+'</td><td data-val="'+rnum(r.qty)+'">'+fN(r.qty)+'</td><td data-val="'+rnum(r.sales)+'">'+fM(r.sales)+'</td></tr>';});
@@ -1680,7 +1680,7 @@ async function ac(){
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'销量'))});
   d.prev_labels.forEach(l=>{th.push(addCol('销量',l+'日均销量'))});
   th=th.concat([addCol('销量','销量占比')]);
-  document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  document.getElementById('cth').innerHTML=th.map((x,i)=>'<th data-col="'+i+'" onclick="sortTableCols(\'ctb\','+i+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind"></span></th>').join('');
   buildColPanel('col-panel-cat',window._catColDefs);
 
   let days=d.period?Math.round((new Date(d.period.end)-new Date(d.period.start))/864e5)+1:1;
@@ -1712,7 +1712,7 @@ async function ac(){
     for(let i=0;i<(v.prev_qty||[]).length;i++)h+='<td data-val="'+rnum((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'">'+fN((v.prev_qty[i]||0)/(v.prev_days[i]||1))+'</td>';
     h+='<td>'+fP(v.qty_share)+'</td></tr>';
   });
-  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td><td data-val="'+rnum(d.total_qty>0?d.total_sales/d.total_qty:0)+'">'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td>';
+  h+='<tr class="total-row" style="font-weight:700;background:#e8eaf6;"><td>合计</td><td data-val="'+rnum(d.total_qty>0?d.total_sales/d.total_qty:0)+'">'+fM(d.total_qty>0?d.total_sales/d.total_qty:0)+'</td>';
   // ── 销额组合计：本期 → 占比 → 同环比 → 前两月 ──
   h+='<td data-val="'+rnum(d.total_sales)+'">'+fM(d.total_sales)+'</td><td>100%</td>';
   h+='<td data-val="'+rnum(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'">'+fM(d.cat_list.reduce((s,v)=>s+(v.yoy_sales||0),0))+'</td><td>-</td>';
@@ -2244,6 +2244,51 @@ function sortSpu(idx){
   if(typeof applyColVisibility==='function')applyColVisibility('col-panel-spu');
   for(let i=0;i<window._spuColFields.length;i++){let el=document.getElementById('spuSort'+i);if(el)el.textContent=(i===idx?(window._spuSort.dir<0?' ▼':' ▲'):'');}
 }
+// ====== 通用表头排序（流量/品类/类目/店铺类目/TOP30 等所有表格）======
+function parseSortVal(raw){
+  if(raw==null)return{v:null,isNum:false};
+  let s=String(raw).trim();
+  if(s===''||s==='-')return{v:null,isNum:false};
+  let neg=/[▼↓负]/.test(s);
+  if(/^-?[\d,]*\.?\d+$/.test(s)){let n=parseFloat(s.replace(/,/g,''));return{v:neg?-n:n,isNum:true};}
+  let s2=s.replace(/[%,$\s▲▼↑↓+]/g,'');
+  if(/^-?\d+(\.\d+)?$/.test(s2)){let n=parseFloat(s2);return{v:neg?-n:n,isNum:true};}
+  return{v:s,isNum:false};
+}
+function updateHeaderSort(tbodyId,colIndex,dir){
+  let tb=document.getElementById(tbodyId);if(!tb)return;
+  let thead=tb.closest('table')&&tb.closest('table').querySelector('thead');if(!thead)return;
+  thead.querySelectorAll('th').forEach((th,i)=>{
+    let ind=th.querySelector('.sort-ind');
+    if(!ind){ind=document.createElement('span');ind.className='sort-ind';th.appendChild(ind);}
+    ind.textContent=(i===colIndex)?(dir<0?' ▼':' ▲'):'';
+  });
+}
+function sortTableCols(tbodyId,colIndex){
+  let tb=document.getElementById(tbodyId);if(!tb)return;
+  let st=window._tSort=window._tSort||{};
+  let key=tbodyId+'#'+colIndex;
+  let dir=st[key]?(-st[key]):-1; // 首次点击=降序(▼)
+  let ns={};ns[key]=dir;window._tSort=ns; // 仅保留当前列排序态
+  let allRows=Array.from(tb.querySelectorAll('tr'));
+  let totals=allRows.filter(r=>r.classList.contains('total-row'));
+  let rows=allRows.filter(r=>!r.classList.contains('total-row')&&!r.querySelector('.empty-state'));
+  let vals=rows.map(r=>{
+    let td=r.children[colIndex];if(!td)return{r,v:null,isNum:false};
+    let dv=td.getAttribute('data-val');
+    let p=parseSortVal(dv!==null&&dv!==''?dv:td.textContent);
+    return{r,v:p.v,isNum:p.isNum};
+  });
+  vals.sort((a,b)=>{
+    if(a.v==null&&b.v==null)return 0;
+    if(a.v==null)return 1;if(b.v==null)return -1;
+    if(a.isNum&&b.isNum)return (a.v-b.v)*dir;
+    return String(a.v).localeCompare(String(b.v),'zh')*dir;
+  });
+  vals.forEach(x=>tb.appendChild(x.r));
+  totals.forEach(r=>tb.appendChild(r));
+  updateHeaderSort(tbodyId,colIndex,dir);
+}
 function dsXLSX(){
   // 跟随列显隐(col-hidden) + 当前筛选/排序后的可见行
   exportXLSXFromTable({bodyId:'stb',sheet:'SPU',file:'spu.xlsx',minCells:18});
@@ -2264,7 +2309,7 @@ async function at(){
     addCol('销额','销售额'),addCol('销额','销售额占比'),addCol('销额','销售额环比'),addCol('销额','环比销额'),addCol('销额','销售额同比'),addCol('销额','同比销额'),
     addCol('销量','销量'),addCol('销量','销量占比'),addCol('销量','销量环比'),addCol('销量','环比销量'),addCol('销量','销量同比'),addCol('销量','同比销量')
   ];
-  document.getElementById('t30th').innerHTML=th.map((x,i)=>'<th data-col="'+i+'">'+x+'</th>').join('');
+  document.getElementById('t30th').innerHTML=th.map((x,i)=>'<th data-col="'+i+'" onclick="sortTableCols(\'t30tb\','+i+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind"></span></th>').join('');
   buildColPanel('col-panel-top30',window._top30ColDefs);
   document.getElementById('t30-note').innerHTML='📅 <b>日期说明</b>：环比期 = '+(d.mom?(d.mom.start+' ~ '+d.mom.end):'上期')+'（上一相邻周期）；同比期 = '+(d.yoy?(d.yoy.start+' ~ '+d.yoy.end):'去年同期')+'（去年同周期）。表中「环比销额/环比销量」为环比期实际值，「同比销额/同比销量」为同比期实际值。';
   let h='';
@@ -2321,10 +2366,14 @@ async function aca(){
   let d=processProductCatAnalysis(s,e,cat);
   let periods=d.periods||[];
   document.getElementById('caTitle').textContent='类目销售分析（'+(d.selected_cat||'全部类目')+'）';
-  let th='<th>渠道</th>';
-  periods.forEach(p=>{th+='<th>'+p.label+'<br>销售额</th>';});
-  th+='<th>本期vs上期<br>销售额差值</th><th>差值<br>比例</th>';
-  periods.forEach(p=>{th+='<th>'+p.label+'<br>销量</th>';});
+  let _ci=0;
+  function _th(x){return '<th data-col="'+(_ci++)+'" onclick="sortTableCols(\'catb\','+(_ci-1)+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind"></span></th>';}
+  let th='';
+  th+=_th('渠道');
+  periods.forEach(p=>{th+=_th(p.label+'<br>销售额');});
+  th+=_th('本期vs上期<br>销售额差值');
+  th+=_th('差值<br>比例');
+  periods.forEach(p=>{th+=_th(p.label+'<br>销量');});
   document.getElementById('cath').innerHTML=th;
   let h='';
   (d.shop_rows||[]).forEach(row=>{
@@ -2342,7 +2391,7 @@ async function aca(){
   let totalSalesVals=[];
   periods.forEach(p=>{if(p.total_sales>0)totalSalesVals.push(p.total_sales);});
   let tMin=totalSalesVals.length>0?Math.min(...totalSalesVals):0,tMax=totalSalesVals.length>0?Math.max(...totalSalesVals):0;
-  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
+  h+='<tr class="total-row" style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
   periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(p.total_sales)+'">'+fM(p.total_sales)+'</td>';});
   let li=periods.length-1,li_1=periods.length-2;
   let p0t=li>=0?periods[li].total_sales:0,p1t=li_1>=0?periods[li_1].total_sales:0;
@@ -2421,10 +2470,14 @@ async function asc(){
   let d=processProductShopCatAnalysis(s,e,shop,cat);
   let periods=d.periods||[];
   document.getElementById('scTitle').textContent='店铺类目分析（'+(d.selected_shop)+' / '+(d.selected_cat)+'）';
-  let th='<th>类目</th>';
-  periods.forEach(p=>{th+='<th>'+p.label+'<br>销售额</th>';});
-  th+='<th>本期vs上期<br>销售额差值</th><th>差值<br>比例</th>';
-  periods.forEach(p=>{th+='<th>'+p.label+'<br>销量</th>';});
+  let _ci=0;
+  function _th(x){return '<th data-col="'+(_ci++)+'" onclick="sortTableCols(\'scatb\','+(_ci-1)+')" style="cursor:pointer;user-select:none">'+x+' <span class="sort-ind"></span></th>';}
+  let th='';
+  th+=_th('类目');
+  periods.forEach(p=>{th+=_th(p.label+'<br>销售额');});
+  th+=_th('本期vs上期<br>销售额差值');
+  th+=_th('差值<br>比例');
+  periods.forEach(p=>{th+=_th(p.label+'<br>销量');});
   document.getElementById('scath').innerHTML=th;
   let h='';
   (d.cat_rows||[]).forEach(row=>{
@@ -2442,7 +2495,7 @@ async function asc(){
   let totalSalesVals=[];
   periods.forEach(p=>{if(p.total_sales>0)totalSalesVals.push(p.total_sales);});
   let tMin=totalSalesVals.length>0?Math.min(...totalSalesVals):0,tMax=totalSalesVals.length>0?Math.max(...totalSalesVals):0;
-  h+='<tr style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
+  h+='<tr class="total-row" style="font-weight:700;background:#e8eaf6;"><td>合计</td>';
   periods.forEach(p=>{let hc=heatColor(p.total_sales,tMin,tMax);h+='<td '+hc.style+' data-heat="'+hc.hex+'" data-val="'+rnum(p.total_sales)+'">'+fM(p.total_sales)+'</td>';});
   let li=periods.length-1,li_1=periods.length-2;
   let p0t=li>=0?periods[li].total_sales:0,p1t=li_1>=0?periods[li_1].total_sales:0;
