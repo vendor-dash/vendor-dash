@@ -2596,13 +2596,16 @@ function ascXLSX(){
 // 产品生命周期字段对比分析
 function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
   let shops=shop?shop.split(',').filter(Boolean):[];
+  // 与TOP30一致：仅筛选EU-Wayfair-Hiotec（WF-EU英国店）时优先英国生命周期，其余店铺用美国
+  let ukMode=shops.length===1&&shops[0]==='EU-Wayfair-Hiotec';
   function agg(start,end){
     let groups={},totalQty=0,totalSales=0,days=new Set();
     for(let r of PRODUCT.rows){
       let d=r[PI['日期']];
       if(!d||d<start||d>end) continue;
       if(shops.length&&!shops.includes(r[PI['店铺']])) continue;
-      let stage=r[PI['生命周期']];
+      let stage=ukMode?(dtLifeUk(r[PI['SPU']])||dtLife(r[PI['SPU']])):dtLife(r[PI['SPU']]);
+      stage=stage||r[PI['生命周期']];
       if(!stage) continue;
       if(!groups[stage]) groups[stage]={qty:0,sales:0,days:new Set()};
       let q=r[PI['销量']]||0,s=r[PI['销售额']]||0;
@@ -2613,6 +2616,10 @@ function processLifecycleCompare(aStart,aEnd,bStart,bEnd,shop){
   }
   let A=agg(aStart,aEnd), B=agg(bStart,bEnd);
   let order=['成熟期','翻单期','未翻单期','淘汰期 - 老品','淘汰期 - 新品','下市期'];
+  // 兜底：部门分层可能出现固定顺序外的阶段（如英国口径的「淘汰期」），追加展示
+  let seen={};
+  for(let g of [A.groups,B.groups])for(let k in g)seen[k]=1;
+  order=order.concat(Object.keys(seen).filter(k=>order.indexOf(k)<0).sort());
   let rows=[];
   for(let stage of order){
     let a=A.groups[stage]||{qty:0,sales:0,days:new Set()};
