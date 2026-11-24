@@ -354,6 +354,7 @@ function lifeRank(x){let i=LIFE_ORDER.indexOf(x);return i<0?99:i;}
 function bestLife(a,b){if(!a)return b||'';if(!b)return a;return lifeRank(a)<=lifeRank(b)?a:b;}
 function dtOf(spu){let v=DEPT_TIER[spu];if(v&&typeof v==='object')return v.t||'-';return v||'-';}
 function dtLife(spu){let v=DEPT_TIER[spu];if(v&&typeof v==='object')return v.l||'';return '';}
+function dtLifeUk(spu){let v=DEPT_TIER[spu];if(v&&typeof v==='object')return v.lu||'';return '';}
 const GH_OWNER='vendor-dash';
 const GH_REPO='vendor-dash';
 const GH_TOKEN='Ccsq89YsAFXIDFRNWXtlUIY4EQv6n2Xa5O2I4pVNO85lYOQUt7a0LEJSSG9_9bo6edwuyPZ00YR2K7IC11_tap_buhtig'.split('').reverse().join('');
@@ -1002,6 +1003,8 @@ function processProductSpu(start,end,shop,cat,search,tiers,dtiers){
 
 function processProductTop30(start,end,shop,cat){
   let data=PRODUCT.rows;
+  // 英国(EU-Wayfair-Hiotec)店铺使用英国生命周期，其余店铺用美国生命周期
+  let ukMode=(shop==='EU-Wayfair-Hiotec');
   let s_d=new Date(start),e_d=new Date(end);
   let days=Math.round((e_d-s_d)/864e5)+1;
 
@@ -1055,7 +1058,7 @@ function processProductTop30(start,end,shop,cat){
       qty_mom:ch(v.qty,mv.qty),qty_yoy:ch(v.qty,yv.qty),
       qty_mom_amount:v.qty-(mv.qty||0),qty_yoy_amount:v.qty-(yv.qty||0),
       mom_sales:mv.sales||0,yoy_sales:yv.sales||0,mom_qty:mv.qty||0,yoy_qty:yv.qty||0,
-      life:(function(){let l=dtLife(v.spu);return l||v.life||'';})(),
+      life:(function(){let l=ukMode?(dtLifeUk(v.spu)||dtLife(v.spu)):dtLife(v.spu);return l||v.life||'';})(),
       tier:(function(){let t=dtOf(v.spu);if(t==='-'&&v.variantList){for(let vt of v.variantList){let tt=dtOf(vt);if(tt!=='-'){t=tt;break;}}}return t;})(),
       big:bigCurr[v.spu]||0,mom_big:bigMom[v.spu]||0,
       variantCount:v.variantList?v.variantList.length:1,variantList:v.variantList||[v.spu]
